@@ -83,6 +83,18 @@ const setVal = async (w, sel, v, evName = 'change') => {
   ok('顯示完整範本', txt(w).includes('從自由工作者到可擴展的事業'));
   ok('還沒有專案', txt(w).includes('還沒有專案'));
 
+  console.log('\n=== ①b 範本順序與底座：空白 → 可擴展事業 → 鳥舍（教學最淡） ===');
+  const cards = [...w.document.querySelectorAll('[data-act="newfrom"]')];
+  eq('第 1 張是空白專案', cards[0].dataset.key, 'blank');
+  eq('第 2 張是可擴展事業', cards[1].dataset.key, 'scalable');
+  eq('第 3 張（最右）是鳥舍教學', cards[2].dataset.key, 'birdhouse');
+  ok('空白專案是強調底座', cards[0].className.includes('pcard--primary'), cards[0].className);
+  ok('可擴展事業是中間底座', cards[1].className.includes('pcard--normal'), cards[1].className);
+  ok('鳥舍是最淡底座', cards[2].className.includes('pcard--faint'), cards[2].className);
+  ok('空白專案標「建議從這裡開始」', cards[0].textContent.includes('建議從這裡開始'));
+  ok('鳥舍標明只需看一次', cards[2].textContent.includes('看一次就好'));
+  eq('每張都有提示標籤', w.document.querySelectorAll('.pcard__hint').length, 3);
+
   console.log('\n=== ② 用鳥舍範本建立專案 ===');
   await click(w, '[data-act="newfrom"][data-key="birdhouse"]');
   ok('進到專案頁', !!w.document.querySelector('[data-act="tab"]'), '找不到頁籤');
