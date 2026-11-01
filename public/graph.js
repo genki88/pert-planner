@@ -99,6 +99,89 @@ function graphSvgMarkup(evs, lay, opt = {}) {
   </svg>`;
 }
 
+/* ============================================================
+   卡片之間的連接線
+   純幾何函式（可單獨測試）＋ 依實際版面計算的繪製函式。
+   ============================================================ */
+
+/**
+ * 算出兩張卡片之間的連接線路徑。
+ * a, b = {left, right, top, h}（相對於外框的座標）
+ * W = 外框寬度；EXT = 轉折時往外推的距離
+ * 同一排 → 直接水平過去；換行／折返 → 走兩排之間的空隙繞過去。
+ */
+function cardLinkPath(a, b, W, EXT) {
+  EXT = EXT || 10;
+  const ay = Math.round(a.top + a.h / 2);
+  const by = Math.round(b.top + b.h / 2);
+  const sameRow = Math.abs(a.top - b.top) < 8;
+
+  if (sameRow && b.left >= a.right) {
+    return Math.abs(ay - by) < 3
+      ? `M${a.right},${ay} H${b.left}`
+      : `M${a.right},${ay} H${Math.round((a.right + b.left) / 2)} V${by} H${b.left}`;
+  }
+
+  const down = b.top >= a.top;
+  const laneY = down
+    ? Math.round((a.top + a.h + b.top) / 2)
+    : Math.round((b.top + b.h + a.top) / 2);
+  const xr = Math.min(W - 6, a.right + EXT);
+  const xl = Math.max(6, b.left - EXT);
+  return `M${a.right},${ay} H${xr} V${laneY} H${xl} V${by} H${b.left}`;
+}
+
+/** 讀出目前畫面上每張卡片的位置，把連接線畫到卡片底下的 SVG */
+function drawCardLinks() {
+  const wrap = document.querySelector('.mcards-wrap');
+  const svg = wrap && wrap.querySelector('.mlines');
+  if (!wrap || !svg || !state.computed) return;
+
+  const base = wrap.getBoundingClientRect();
+  const W = Math.round(base.width);
+  const H = Math.round(base.height);
+  if (!W || !H) return;
+
+  const box = new Map();
+  for (const el of wrap.querySelectorAll('.mcard[data-id]')) {
+    const r = el.getBoundingClientRect();
+    box.set(el.dataset.id, {
+      left: Math.round(r.left - base.left),
+      right: Math.round(r.right - base.left),
+      top: Math.round(r.top - base.top),
+      h: Math.round(r.height),
+    });
+  }
+
+  const byId = new Map(state.computed.events.map(e => [e.id, e]));
+  const paths = [];
+  for (const e of state.computed.events) {
+    const b = box.get(e.id);
+    if (!b) continue;
+    for (const d of (e.deps || [])) {
+      const a = box.get(d);
+      if (!a) continue;
+      const crit = byId.get(d)?.critical && e.critical;
+      paths.push(`<path class="mline ${crit ? 'is-critical' : ''}" d="${cardLinkPath(a, b, W)}" marker-end="url(#mah)"/>`);
+    }
+  }
+
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = `<defs>
+      <marker id="mah" viewBox="0 0 9 9" refX="8" refY="4.5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 z" fill="#5B6068"></path>
+      </marker>
+      <marker id="mahc" viewBox="0 0 9 9" refX="8" refY="4.5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 z" fill="#C0362C"></path>
+      </marker>
+    </defs>${paths.join('')}`;
+  // 要徑的箭頭換成紅色
+  for (const p of svg.querySelectorAll('.mline.is-critical')) p.setAttribute('marker-end', 'url(#mahc)');
+  svg.dataset.count = String(paths.length);
+}
+
 /* ---------------- ④ 流程圖 ---------------- */
 function paneGraph() {
   const evs = state.computed.events;
@@ -343,4 +426,9 @@ function downloadPng() {
   };
   img.onerror = () => alert('轉 PNG 失敗，請改用「下載 SVG」。');
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+}
+
+/* 供 Node 測試使用（瀏覽器不會進這段） */
+if (typeof module !== 'undefined') {
+  module.exports = { cardLinkPath, graphLayout, GEO };
 }

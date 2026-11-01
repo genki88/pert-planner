@@ -164,6 +164,53 @@ const setVal = async (w, sel, v, evName = 'change') => {
   for (const k of ['責任', '時間', '預算', '最早日期', '最晚日期', '前置事件']) ok('卡片有「' + k + '」欄', t9.includes(k));
   ok('卡片數 = 8', w.document.querySelectorAll('.mcard').length === 8, '實際 ' + w.document.querySelectorAll('.mcard').length);
 
+  console.log('\n=== ⑨b 卡片連接線：依實際版面畫出箭頭（6 張鏈狀、第 5 張換行） ===');
+  // jsdom 沒有版面引擎，getBoundingClientRect 全是 0 → 用假座標模擬「一排 4 張、第 5 張換行」
+  const wrapEl = w.document.querySelector('.mcards-wrap');
+  ok('卡片外框存在', !!wrapEl, '→ 缺 .mcards-wrap');
+  const svgEl = wrapEl && wrapEl.querySelector('.mlines');
+  ok('連接線畫布存在', !!svgEl, '→ 缺 .mlines');
+
+  const cardEls = [...w.document.querySelectorAll('.mcard[data-id]')];
+  ok('每張卡都有 data-id', cardEls.length === 8, '實際 ' + cardEls.length);
+
+  const CW = 280, GAP = 20, ROWH = 240, PER = 4, BASEW = 1200;
+  const fake = (el) => {
+    if (el === wrapEl) return { left: 0, top: 0, width: BASEW, height: 520, right: BASEW, bottom: 520 };
+    const i = cardEls.indexOf(el);
+    if (i < 0) return { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 };
+    const col = i % PER, row = Math.floor(i / PER);
+    const left = col * (CW + GAP), top = row * ROWH;
+    return { left, top, width: CW, height: 200, right: left + CW, bottom: top + 200 };
+  };
+  const origRect = w.Element.prototype.getBoundingClientRect;
+  w.Element.prototype.getBoundingClientRect = function () { return fake(this); };
+  w.drawCardLinks();
+  w.Element.prototype.getBoundingClientRect = origRect;
+
+  const lines = [...svgEl.querySelectorAll('.mline')];
+  // 鳥舍 4 張是一條鏈(3 條線) + 後來加的 4 張（油漆接在安裝後、批次 3 張串成一條 2 條線）
+  ok('有畫出連接線', lines.length >= 3, '實際 ' + lines.length + ' 條');
+  eq('連接線數＝相依關係數',
+    lines.length,
+    w.document && JSON.parse(w.localStorage.getItem('pert-projects-v1'))[0].events
+      .reduce((n, e) => n + (e.deps || []).length, 0));
+  ok('畫布有設定寬度', Number(svgEl.getAttribute('width')) === BASEW,
+    '實際 ' + svgEl.getAttribute('width'));
+  ok('每條線都有箭頭', lines.every(p => (p.getAttribute('marker-end') || '').includes('url(#mah')));
+  ok('有定義箭頭 marker', svgEl.innerHTML.includes('<marker'));
+  const ds = lines.map(p => p.getAttribute('d'));
+  ok('所有路徑格式正確', ds.every(d => /^M-?\d+,-?\d+ H/.test(d)), ds[0]);
+  ok('有一條是換行繞行（含垂直段）', ds.some(d => d.includes('V')),
+    '→ 第 5 張換行沒有繞線：' + ds.join(' | ').slice(0, 200));
+
+  console.log('\n=== ⑨c 連接線可以關掉 ===');
+  await click(w, '[data-act="togglelinks"]');
+  ok('關閉後畫布不渲染', !w.document.querySelector('.mlines')
+    || w.document.querySelector('.mlines').querySelectorAll('.mline').length === 0);
+  await click(w, '[data-act="togglelinks"]');
+  ok('可以再打開', !!w.document.querySelector('.mlines'));
+
   console.log('\n=== ⑩ 流程圖：SVG 真的畫出節點與連線 ===');
   await click(w, '[data-act="tab"][data-tab="graph"]');
   const svg = w.document.querySelector('.graph-wrap svg');

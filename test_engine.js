@@ -7,6 +7,10 @@ function eq(label, got, want) {
   if (String(got) === String(want)) { pass++; }
   else { fail++; console.log(`  ✗ ${label}\n      得到 ${JSON.stringify(got)}  應為 ${JSON.stringify(want)}`); }
 }
+function ok(label, cond, extra = '') {
+  if (cond) pass++;
+  else { fail++; console.log(`  ✗ ${label} ${extra}`); }
+}
 
 console.log('\n=== ① 鳥舍：手冊印出的最早／最晚日期 ===');
 const bh = {
@@ -74,7 +78,35 @@ const r5 = computePert({
 eq('循環數=2', r5.cycle.length, 2);
 eq('Z 不在循環', r5.events.find(e => e.name === 'Z').inCycle, false);
 
-console.log('\n=== ⑥ 完整範本「自由工作者→可擴展事業」 ===');
+console.log('\n=== ⑨ 卡片連接線：路徑計算（同排／換行／折返） ===');
+const { cardLinkPath } = require('./public/graph.js');
+const W = 1200;
+// 同一排相鄰：320~600 與 620~900，高度相同
+const A = { left: 20, right: 300, top: 0, h: 200 };
+const B = { left: 320, right: 600, top: 0, h: 200 };
+const C = { left: 620, right: 900, top: 0, h: 200 };
+const D = { left: 920, right: 1180, top: 0, h: 200 };
+const E = { left: 20, right: 300, top: 240, h: 200 };   // 換到下一排
+eq('同排直線', cardLinkPath(A, B, W), 'M300,100 H320');
+eq('同排第二段', cardLinkPath(B, C, W), 'M600,100 H620');
+ok('同排路徑只有水平', !cardLinkPath(C, D, W).includes('V'));
+
+const wrapPath = cardLinkPath(D, E, W);
+ok('換行走繞行路徑', wrapPath.includes('V') && wrapPath.split('H').length >= 3, wrapPath);
+ok('換行從右邊出去', wrapPath.startsWith('M1180,100'), wrapPath);
+ok('換行走兩排之間的空隙 y=220', wrapPath.includes('V220'), wrapPath);
+ok('換行在右邊界內轉折', wrapPath.includes('H1194') || wrapPath.includes('H1190'), wrapPath);
+ok('換行終點回到下一排卡片左緣', wrapPath.endsWith('H20'), wrapPath);
+
+// 同排但高度不同 → 需要轉折對齊中線
+const B2 = { left: 320, right: 600, top: 0, h: 260 };
+ok('同排高度不同會轉折', cardLinkPath(A, B2, W).includes('V130'), cardLinkPath(A, B2, W));
+
+// 折返（後面的卡片指回前面）
+const back = cardLinkPath(E, A, W);
+ok('折返也畫得出來', back.startsWith('M300,340') && back.includes('V'), back);
+
+console.log('\n=== ⑩ 完整範本「自由工作者→可擴展事業」 ===');
 const sc = TEMPLATES.find(t => t.key === 'scalable');
 const r6 = computePert({ startDate: '2026-07-01', dueDate: '2027-09-01', events: sc.events });
 eq('事件數', r6.totals.count, 41);
