@@ -10,6 +10,7 @@
 
 const LS_KEY = 'pert-projects-v1';
 const LS_ME = 'pert-me-v1';
+const LS_PEOPLE = 'pert-people-v1';
 
 function uid(prefix = 'e') {
   return prefix + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
@@ -49,11 +50,12 @@ const localDriver = {
   },
 
   async listProjects() {
-    return this._all().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    return this._all().map(p => Store.normalize(p))
+      .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   },
 
   async getProject(id) {
-    return this._all().find(p => p.id === id) || null;
+    return Store.normalize(this._all().find(p => p.id === id) || null);
   },
 
   async saveProject(project) {
@@ -106,15 +108,70 @@ const Store = {
     return {
       id: uid('e'),
       name: '',
-      resp: '',
+      assigneeId: '',          // 之後接戰情室人員帳號；現在先存本機名單的 id
+      assigneeName: '',        // 姓名快照 —— 名單改名也不影響歷史紀錄
       days: 1,
       budget: 0,
       deps: [],
       track: '其他',
-      done: false,
-      note: '',
+      status: 'todo',          // todo | doing | done | blocked
+      actualStart: '',         // 實際開始日（負責人回報）
+      actualEnd: '',           // 實際完成日（負責人回報）
+      note: '',                // 卡住的原因／備註
       ...partial,
     };
+  },
+
+  /**
+   * 把舊資料補上新欄位（舊專案沒有 status／實際日期／指派對象）。
+   * 每次讀取專案都會跑，是冪等的。
+   */
+  normalize(p) {
+    if (!p) return p;
+    p.events = (p.events || []).map(e => {
+      const o = {
+        assigneeId: '', assigneeName: '', status: 'todo',
+        actualStart: '', actualEnd: '', note: '', track: '其他',
+        ...e,
+      };
+      if (!o.status) o.status = o.done ? 'done' : 'todo';
+      if (o.done && o.status === 'todo') o.status = 'done';
+      // 舊的自由文字「責任」欄 → 搬進姓名快照
+      if (!o.assigneeName && o.resp) o.assigneeName = o.resp;
+      o.resp = o.assigneeName;
+      delete o.done;
+      return o;
+    });
+    if (!p.visibility) p.visibility = 'private';
+    return p;
+  },
+
+  /* ---------- 人員名單（暫用；併入戰情室後改讀權限中心） ---------- */
+  async listPeople() {
+    try {
+      const raw = localStorage.getItem(LS_PEOPLE);
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return [];
+  },
+
+  async savePeople(list) {
+    localStorage.setItem(LS_PEOPLE, JSON.stringify(list));
+    return list;
+  },
+
+  async addPerson(name, dept) {
+    const list = await Store.listPeople();
+    const p = { id: uid('ppl'), name: String(name || '').trim(), dept: String(dept || '').trim() };
+    if (!p.name) return list;
+    if (list.some(x => x.name === p.name)) return list;
+    list.push(p);
+    return Store.savePeople(list);
+  },
+
+  async removePerson(id) {
+    const list = (await Store.listPeople()).filter(p => p.id !== id);
+    return Store.savePeople(list);
   },
 
   /** 從範本建立專案（補上今年年份、重新產生 id 以免撞號） */
@@ -133,13 +190,15 @@ const Store = {
       id: idMap.get(e.id),
       deps: (e.deps || []).map(d => idMap.get(d)).filter(Boolean),
     }));
-    return Store.newProject({
-      title: tpl.title,
-      goal: tpl.goal,
-      startDate: fixDate(tpl.startDate, y),
-      dueDate: fixDate(tpl.dueDate, y + (tpl.dueYearOffset || 0)),
-      events,
-    });
+    // 日期：優先用「距今幾天」，沒有才用固定的 MM-DD
+    const today = todayLocalIso();
+    const shift = (n) => fromDayNum(toDayNum(today) + n);
+    const startDate = tpl.startOffsetDays != null
+      ? shift(tpl.startOffsetDays) : fixDate(tpl.startDate, y);
+    const dueDate = tpl.dueOffsetDays != null
+      ? shift(tpl.dueOffsetDays) : fixDate(tpl.dueDate, y + (tpl.dueYearOffset || 0));
+
+    return Store.newProject({ title: tpl.title, goal: tpl.goal, startDate, dueDate, events });
   },
 
   uid,

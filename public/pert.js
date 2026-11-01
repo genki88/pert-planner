@@ -24,6 +24,14 @@ function fromDayNum(n) {
   return `${y}-${m}-${d}`;
 }
 
+/** 今天（本地時區）。不能用 toISOString —— 那是 UTC，台灣半夜會算成昨天 */
+function todayLocalIso() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 /** 顯示用短日期 8-6 */
 function shortDate(iso) {
   if (!iso) return '';
@@ -61,45 +69,94 @@ function topoSort(events) {
   return { order, cycle, next, byId };
 }
 
+/** 里程碑狀態 */
+const STATUS = {
+  todo: { key: 'todo', label: '未開始' },
+  doing: { key: 'doing', label: '進行中' },
+  done: { key: 'done', label: '已完成' },
+  blocked: { key: 'blocked', label: '卡住了' },
+};
+const STATUS_ORDER = ['todo', 'doing', 'done', 'blocked'];
+
+/** 兩個日期之間相差幾天（含頭不含尾） */
+function daysBetween(a, b) {
+  const x = toDayNum(a), y = toDayNum(b);
+  return (x === null || y === null) ? null : y - x;
+}
+
 /**
  * 主計算。
- * @param {object} project {startDate:'YYYY-MM-DD', dueDate:'YYYY-MM-DD'|null, events:[...]}
- * 事件: {id, name, resp, days, budget, deps:[id], done:bool}
- * @returns {object} {events:[...含計算結果], totals:{...}, cycle:[], minSlack}
+ * @param {object} project {startDate, dueDate, events:[...]}
+ *   事件: {id, name, resp, assigneeId, assigneeName, days, budget, deps:[id],
+ *          status, actualStart, actualEnd}
+ * @param {object} opts
+ *   useActuals: true = 用實際進度推算（實際日期蓋過計畫，往下游順延）
+ *   today: 'YYYY-MM-DD'，還沒開始的事情最早也只能從今天算起
+ * @returns {object} {events, totals, cycle, order}
  */
-function computePert(project) {
+function computePert(project, opts) {
+  opts = opts || {};
+  const useActuals = !!opts.useActuals;
+
   const events = (project.events || []).map(e => ({
     ...e,
     days: Number(e.days) || 0,
     budget: Number(e.budget) || 0,
     deps: (e.deps || []).slice(),
+    status: e.status || (e.done ? 'done' : 'todo'),
   }));
 
   const { order, cycle, next, byId } = topoSort(events);
   const start = toDayNum(project.startDate);
 
-  // --- 正向計算：最早開始 (es)，以「距離起始日的天數」為單位 ---
+  // 把日期換算成「距離專案起始日的天數」
+  const off = (iso) => {
+    const d = toDayNum(iso);
+    return (d === null || start === null) ? null : d - start;
+  };
+  const todayOff = opts.today ? off(opts.today) : null;
+
+  // 這件事實際花了幾天（已填實際起訖就用實際的，否則用計畫的）
+  const durOf = (e) => {
+    if (useActuals && e.actualStart && e.actualEnd) {
+      const n = daysBetween(e.actualStart, e.actualEnd);
+      if (n !== null) return Math.max(1, n + 1);
+    }
+    return e.days;
+  };
+
+  // --- 正向計算：最早開始 es、以及後續可以接手的時間點 ef ---
   const es = new Map(events.map(e => [e.id, 0]));
+  const ef = new Map(events.map(e => [e.id, 0]));
   for (const id of order) {
     const e = byId.get(id);
-    let v = 0;
+    let base = 0;
     for (const d of e.deps) {
-      const p = byId.get(d);
-      if (!p) continue;
-      v = Math.max(v, es.get(d) + p.days);
+      if (!byId.has(d)) continue;
+      base = Math.max(base, ef.get(d));
     }
-    es.set(id, v);
+    let s = base;
+    if (useActuals) {
+      if (e.actualStart && off(e.actualStart) !== null) {
+        s = off(e.actualStart);                       // 已經開工 → 釘在實際日期
+      } else if (todayOff !== null && e.status !== 'done') {
+        s = Math.max(base, todayOff);                 // 還沒開工的，最早也只能是今天
+      }
+    }
+    es.set(id, s);
+    const finish = (useActuals && e.actualEnd && off(e.actualEnd) !== null)
+      ? off(e.actualEnd) + 1                          // 已完工 → 隔天就能接手
+      : s + durOf(e);
+    ef.set(id, finish);
   }
 
-  // 專案自然完成時間 = 所有事件 (es + days) 的最大值
   let naturalEnd = 0;
-  for (const e of events) naturalEnd = Math.max(naturalEnd, es.get(e.id) + e.days);
+  for (const e of events) naturalEnd = Math.max(naturalEnd, ef.get(e.id));
 
-  // 截止日（若有設定）換算成天數位移；沒設定就用自然完成時間
   const due = toDayNum(project.dueDate);
   const horizon = (due !== null && start !== null) ? (due - start) : naturalEnd;
 
-  // --- 反向計算：最晚須完成 (lf) ---
+  // --- 反向計算：最晚須完成 lf ---
   const lf = new Map(events.map(e => [e.id, horizon]));
   for (let i = order.length - 1; i >= 0; i--) {
     const id = order[i];
@@ -108,18 +165,14 @@ function computePert(project) {
       lf.set(id, horizon);
     } else {
       let v = Infinity;
-      for (const s of succ) {
-        const se = byId.get(s);
-        v = Math.min(v, lf.get(s) - se.days);
-      }
+      for (const s of succ) v = Math.min(v, lf.get(s) - durOf(byId.get(s)));
       lf.set(id, v);
     }
   }
 
-  // --- 鬆弛時間 ---
   let minSlack = Infinity;
   for (const e of events) {
-    const s = lf.get(e.id) - (es.get(e.id) + e.days);
+    const s = lf.get(e.id) - (es.get(e.id) + durOf(e));
     e.slack = s;
     if (!cycle.includes(e.id)) minSlack = Math.min(minSlack, s);
   }
@@ -127,30 +180,61 @@ function computePert(project) {
 
   for (const e of events) {
     e.esOffset = es.get(e.id);
+    e.efOffset = ef.get(e.id);
     e.lfOffset = lf.get(e.id);
+    e.durUsed = durOf(e);
     e.earliestDate = start !== null ? fromDayNum(start + e.esOffset) : '';
     e.latestDate = start !== null ? fromDayNum(start + e.lfOffset) : '';
+    e.finishDate = start !== null ? fromDayNum(start + e.efOffset - 1) : '';
     e.critical = !cycle.includes(e.id) && e.slack === minSlack;
     e.inCycle = cycle.includes(e.id);
+    e.done = e.status === 'done';
+    // 該開工卻還沒開工
+    e.lateToStart = useActuals && todayOff !== null && !e.actualStart
+      && e.status !== 'done' && lf.get(e.id) - durOf(e) < todayOff;
   }
 
   const totals = {
     count: events.length,
-    doneCount: events.filter(e => e.done).length,
+    doneCount: events.filter(e => e.status === 'done').length,
+    doingCount: events.filter(e => e.status === 'doing').length,
+    blockedCount: events.filter(e => e.status === 'blocked').length,
     budget: events.reduce((a, e) => a + e.budget, 0),
-    doneBudget: events.filter(e => e.done).reduce((a, e) => a + e.budget, 0),
+    doneBudget: events.filter(e => e.status === 'done').reduce((a, e) => a + e.budget, 0),
     naturalEndDays: naturalEnd,
     horizonDays: horizon,
-    naturalEndDate: start !== null ? fromDayNum(start + naturalEnd) : '',
+    naturalEndDate: start !== null ? fromDayNum(start + naturalEnd - 1) : '',
     slackDays: horizon - naturalEnd,
     minSlack,
-    overdue: horizon < naturalEnd,       // 截止日比自然完成時間早 → 排不下
+    overdue: horizon < naturalEnd,
+    donePct: events.length ? Math.round(events.filter(e => e.status === 'done').length / events.length * 100) : 0,
   };
 
-  // 依最早日期排序方便閱讀
-  events.sort((a, b) => (a.esOffset - b.esOffset) || a.name.localeCompare(b.name));
+  events.sort((a, b) => (a.esOffset - b.esOffset) || String(a.name).localeCompare(String(b.name)));
 
   return { events, totals, cycle, order };
+}
+
+/**
+ * 同時算「計畫」與「實際」，並標出每件事落後幾天。
+ * plan = 完全照計畫（忽略實際進度）
+ * live = 把實際進度算進去（延誤會往下游傳）
+ */
+function computeBoth(project, today) {
+  const plan = computePert(project, { useActuals: false });
+  const live = computePert(project, { useActuals: true, today });
+  const planById = new Map(plan.events.map(e => [e.id, e]));
+
+  for (const e of live.events) {
+    const p = planById.get(e.id);
+    e.planStart = p ? p.earliestDate : '';
+    e.planFinish = p ? p.finishDate : '';
+    e.driftStart = p ? e.esOffset - p.esOffset : 0;
+    e.driftFinish = p ? e.efOffset - p.efOffset : 0;
+  }
+  live.totals.driftDays = live.totals.naturalEndDays - plan.totals.naturalEndDays;
+  live.totals.planEndDate = plan.totals.naturalEndDate;
+  return { plan, live };
 }
 
 /** 取得要徑（鬆弛時間最小的那一串） */
@@ -185,5 +269,9 @@ function layerize(events) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { computePert, criticalPath, layerize, toDayNum, fromDayNum, shortDate, topoSort };
+  module.exports = {
+    computePert, computeBoth, criticalPath, layerize,
+    toDayNum, fromDayNum, shortDate, topoSort, daysBetween, todayLocalIso,
+    STATUS, STATUS_ORDER,
+  };
 }

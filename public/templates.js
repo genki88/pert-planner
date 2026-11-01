@@ -13,8 +13,8 @@ const TEMPLATES = [
     title: '鳥舍（教學範例）',
     desc: '手冊第 6-8 頁的入門範例。4 個里程碑事件，示範最早／最晚日期與鬆弛時間怎麼算。',
     goal: '安裝好一座鳥舍',
-    startDate: '08-01',
-    dueDate: '08-10',
+    startOffsetDays: 0,      // 從今天起算，才不會一建立就顯示逾期
+    dueOffsetDays: 9,
     events: [
       { id: 'b1', name: '設計和計劃鳥舍', en: 'BIRDHOUSE DESIGNED & PLANNED', resp: '', days: 1, budget: 0, deps: [] },
       { id: 'b2', name: '分配做鳥舍的材料及工具', en: 'BIRDHOUSE MATERIALS/TOOLS ALLOCATED', resp: '', days: 1, budget: 30, deps: ['b1'] },
@@ -30,9 +30,8 @@ const TEMPLATES = [
     title: '從自由工作者到可擴展的事業',
     desc: '手冊第 10-11 頁的完整 PERT 網絡圖，41 個里程碑事件，涵蓋 B-I 三角形全部區塊（使命／現金流／溝通／系統／法務／產品）。',
     goal: '發表開始 — 事業可擴展、不需要你親自在場也能運轉',
-    startDate: '07-01',
-    dueDate: '09-01',
-    dueYearOffset: 1,     // 手冊的圖表橫跨一年多：7月起跑，隔年 9 月發表
+    startOffsetDays: 0,      // 從今天起算
+    dueOffsetDays: 427,      // 手冊的圖表橫跨一年多（約 14 個月）
     events: [
       // --- 地基 ---
       { id: 's01', name: '建立使命', en: 'MISSION CREATED', resp: '', days: 1, budget: 0, deps: [], track: '使命' },

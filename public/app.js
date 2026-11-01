@@ -10,7 +10,7 @@ const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const money = (n) => Number(n || 0).toLocaleString('zh-TW');
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => todayLocalIso();
 
 function addDays(iso, n) {
   const d = toDayNum(iso);
@@ -30,11 +30,17 @@ const state = {
   modal: null,
   filterTrack: '',
   showLinks: true,     // 卡片檢視是否畫相依連接線
+  people: [],          // 暫用人員名單（併入戰情室後改讀權限中心）
+  filterWho: '',       // '' = 全部；否則只看某人負責的
+  plan: null,
   toast: '',
 };
 
 function recompute() {
-  state.computed = state.project ? computePert(state.project) : null;
+  if (!state.project) { state.computed = null; state.plan = null; return; }
+  const both = computeBoth(state.project, todayIso());
+  state.computed = both.live;      // 畫面一律看「把實際進度算進去」的結果
+  state.plan = both.plan;          // 原始計畫，用來比對落後幾天
 }
 
 async function reloadProjects() {
@@ -148,6 +154,12 @@ function viewHome() {
    ============================================================ */
 function projectHeader() {
   const p = state.project, t = state.computed.totals;
+  const lateChain = state.computed.events
+    .filter(e => e.critical && e.driftFinish > 0)
+    .map(e => `${e.name}（晚 ${e.driftFinish} 天）`);
+  const blockedList = state.computed.events
+    .filter(e => e.status === 'blocked')
+    .map(e => `${e.name}${e.assigneeName ? '／' + e.assigneeName : ''}${e.note ? '：' + e.note : ''}`);
   return `
   <section class="card">
     <div class="card__head">
@@ -192,13 +204,46 @@ function projectHeader() {
     ${state.computed.cycle.length ? `<div class="alert alert--error small">
         <b>相依循環。</b>有 ${state.computed.cycle.length} 個事件互相指定對方為前置，形成死結，無法排程。請到「里程碑表格」修正前置事件。
       </div>` : ''}
+    ${t.driftDays > 0 ? `<div class="alert alert--warn small">
+        <b>目前落後計畫 ${t.driftDays} 天。</b>
+        原計畫 ${t.planEndDate} 完工，依現在回報的實際進度推算會變成 <b>${t.naturalEndDate}</b>。
+        ${lateChain.length ? `延誤來自要徑上的：${esc(lateChain.join('、'))}。` : ''}
+      </div>` : ''}
+    ${t.blockedCount ? `<div class="alert alert--error small">
+        <b>有 ${t.blockedCount} 件卡住了。</b>${esc(blockedList.join('；'))}
+      </div>` : ''}
 
     <div class="kpis">
-      <div class="kpi"><span class="kpi__k">里程碑事件</span><span class="kpi__v">${t.count}</span><span class="kpi__sub">已完成 ${t.doneCount}</span></div>
-      <div class="kpi"><span class="kpi__k">最快完成需要</span><span class="kpi__v">${t.naturalEndDays}</span><span class="kpi__sub">天${t.naturalEndDate ? `（${t.naturalEndDate}）` : ''}</span></div>
-      <div class="kpi"><span class="kpi__k">整體彈性時間</span><span class="kpi__v ${t.slackDays < 0 ? 'kpi__v--warn' : ''}">${t.slackDays}</span><span class="kpi__sub">天（截止日 − 最快完成）</span></div>
-      <div class="kpi"><span class="kpi__k">預算合計</span><span class="kpi__v">${money(t.budget)}</span><span class="kpi__sub">已投入 ${money(t.doneBudget)}</span></div>
-      <div class="kpi"><span class="kpi__k">要徑上的事件</span><span class="kpi__v">${state.computed.events.filter(e => e.critical).length}</span><span class="kpi__sub">延誤就會拖累全案</span></div>
+      <div class="kpi">
+        <span class="kpi__k">完成進度</span>
+        <span class="kpi__v">${t.donePct}%</span>
+        <span class="kpi__sub">${t.doneCount}／${t.count} 項完成・進行中 ${t.doingCount}</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__k">預計完工</span>
+        <span class="kpi__v" style="font-size:20px">${t.naturalEndDate || '—'}</span>
+        <span class="kpi__sub">原計畫 ${t.planEndDate || '—'}</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__k">和計畫相比</span>
+        <span class="kpi__v ${t.driftDays > 0 ? 'kpi__v--warn' : ''}">${t.driftDays > 0 ? '+' + t.driftDays : t.driftDays}</span>
+        <span class="kpi__sub">天（正數＝落後）</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__k">距離截止日還剩</span>
+        <span class="kpi__v ${t.slackDays < 0 ? 'kpi__v--warn' : ''}">${t.slackDays}</span>
+        <span class="kpi__sub">天彈性</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__k">要徑上的事件</span>
+        <span class="kpi__v">${state.computed.events.filter(e => e.critical).length}</span>
+        <span class="kpi__sub">延誤就會拖累全案</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__k">預算合計</span>
+        <span class="kpi__v" style="font-size:22px">${money(t.budget)}</span>
+        <span class="kpi__sub">已投入 ${money(t.doneBudget)}</span>
+      </div>
     </div>
   </section>`;
 }
@@ -307,11 +352,32 @@ function paneQuick() {
 }
 
 /* ---------------- ② 里程碑表格 ---------------- */
+function personOptions(selectedId, selectedName) {
+  const opts = state.people.map(p =>
+    `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}${p.dept ? '（' + esc(p.dept) + '）' : ''}</option>`);
+  // 名單裡找不到（舊資料或人員已移除）→ 保留原本的姓名，不要弄丟
+  const orphan = selectedName && !state.people.some(p => p.id === selectedId);
+  return `<option value="">— 未指派 —</option>`
+    + (orphan ? `<option value="__keep__" selected>${esc(selectedName)}（不在名單）</option>` : '')
+    + opts.join('');
+}
+
 function paneTable() {
   const evs = state.computed.events;
   const tracks = [...new Set(state.project.events.map(e => e.track || '其他'))];
-  const shown = state.filterTrack ? evs.filter(e => (e.track || '其他') === state.filterTrack) : evs;
+  const whoList = [...new Set(state.project.events.map(e => e.assigneeName).filter(Boolean))];
+
+  let shown = evs;
+  if (state.filterTrack) shown = shown.filter(e => (e.track || '其他') === state.filterTrack);
+  if (state.filterWho) shown = shown.filter(e => e.assigneeName === state.filterWho);
+
   const nameOf = (id) => (state.project.events.find(x => x.id === id)?.name) || '?';
+  const drift = (n) => {
+    if (!n) return '<span class="muted">準時</span>';
+    return n > 0
+      ? `<span class="late">晚 ${n} 天</span>`
+      : `<span class="early">早 ${-n} 天</span>`;
+  };
 
   return `
   <section class="card">
@@ -319,43 +385,65 @@ function paneTable() {
       <h2 class="card__title">里程碑表格</h2>
       <div class="row no-print">
         <button type="button" class="btn btn--sm btn--primary" data-act="addrow">＋ 新增一列</button>
+        <button type="button" class="btn btn--sm" data-act="people">👤 人員名單</button>
         <button type="button" class="btn btn--sm" data-act="printtable">🖨 列印表格</button>
       </div>
     </div>
 
+    ${whoList.length ? `<div class="chips no-print">
+      <span class="small muted">負責人：</span>
+      <button type="button" class="chip ${!state.filterWho ? 'is-on' : ''}" data-act="who" data-w="">全部</button>
+      ${whoList.map(n => `<button type="button" class="chip ${state.filterWho === n ? 'is-on' : ''}" data-act="who" data-w="${esc(n)}">${esc(n)}（${evs.filter(e => e.assigneeName === n).length}）</button>`).join('')}
+    </div>` : ''}
+
     ${tracks.length > 1 ? `<div class="chips no-print">
+      <span class="small muted">區塊：</span>
       <button type="button" class="chip ${!state.filterTrack ? 'is-on' : ''}" data-act="track" data-t="">全部（${evs.length}）</button>
       ${tracks.map(t => `<button type="button" class="chip ${state.filterTrack === t ? 'is-on' : ''}" data-act="track" data-t="${esc(t)}">${esc(t)}（${evs.filter(e => (e.track || '其他') === t).length}）</button>`).join('')}
     </div>` : ''}
 
     <div class="small muted">
-      灰色欄位是你填的；<span style="color:var(--c-accent);font-weight:700">藍色欄位</span>是系統依相依關係自動算的。
-      紅底列＝要徑（彈性最小，不能延誤）。
+      左半邊「計畫」是你排的；右半邊「實際」是負責人回報的。
+      <span style="color:var(--c-accent);font-weight:700">藍色欄位</span>是系統算的——
+      只要有人回報實際日期，後面所有里程碑的日期會自動往後推。紅底列＝要徑，不能延誤。
     </div>
 
     <div class="table-wrap">
-      <table class="table">
+      <table class="table table--wide">
         <thead>
           <tr>
-            <th style="width:36px" title="已完成">✓</th>
+            <th colspan="7" class="grp">計　畫　（專案負責人填）</th>
+            <th colspan="3" class="grp grp--live">實　際　（負責人回報）</th>
+            <th colspan="4" class="grp grp--calc">系統自動算</th>
+            <th class="no-print" style="width:44px"></th>
+          </tr>
+          <tr>
             <th>里程碑事件（過去式）</th>
-            <th class="col-mid">責任（誰）</th>
+            <th class="col-mid">負責人</th>
             <th class="col-track">區塊</th>
             <th class="col-narrow">時間(天)</th>
             <th class="col-budget">預算</th>
             <th>前置事件</th>
-            <th class="col-narrow">最早日期</th>
+            <th class="col-narrow">計畫開始</th>
+            <th class="col-mid">狀態</th>
+            <th class="col-date">實際開始</th>
+            <th class="col-date">實際完成</th>
+            <th class="col-narrow">預計開始</th>
             <th class="col-narrow">最晚日期</th>
             <th class="col-narrow">彈性(天)</th>
-            <th class="no-print" style="width:44px"></th>
+            <th class="col-mid">和計畫差</th>
+            <th class="no-print"></th>
           </tr>
         </thead>
         <tbody>
           ${shown.map(e => `
-          <tr class="${e.critical ? 'is-critical' : ''} ${e.done ? 'is-done' : ''}">
-            <td><input type="checkbox" data-ev="${e.id}" data-k="done" ${e.done ? 'checked' : ''}></td>
+          <tr class="${e.critical ? 'is-critical' : ''} ${e.status === 'done' ? 'is-done' : ''} ${e.status === 'blocked' ? 'is-blocked' : ''}">
             <td><input class="cell" data-ev="${e.id}" data-k="name" value="${esc(e.name)}" placeholder="例如：設計圖已完成"></td>
-            <td><input class="cell" data-ev="${e.id}" data-k="resp" value="${esc(e.resp)}" placeholder="姓名／部門"></td>
+            <td>
+              <select class="cell" data-ev="${e.id}" data-k="assigneeId">
+                ${personOptions(e.assigneeId, e.assigneeName)}
+              </select>
+            </td>
             <td>
               <select class="cell" data-ev="${e.id}" data-k="track">
                 ${TRACKS.map(t => `<option value="${t}" ${(e.track || '其他') === t ? 'selected' : ''}>${t}</option>`).join('')}
@@ -368,14 +456,39 @@ function paneTable() {
                 ${e.deps.length ? esc(e.deps.map(nameOf).join('、')).slice(0, 60) : '＋ 設定前置'}
               </button>
             </td>
-            <td class="calc">${e.earliestDate ? shortDate(e.earliestDate) : '—'}</td>
+            <td class="plan">${e.planStart ? shortDate(e.planStart) : '—'}</td>
+
+            <td class="live">
+              <select class="cell cell--status status--${e.status}" data-ev="${e.id}" data-k="status">
+                ${STATUS_ORDER.map(s => `<option value="${s}" ${e.status === s ? 'selected' : ''}>${STATUS[s].label}</option>`).join('')}
+              </select>
+            </td>
+            <td class="live"><input class="cell" type="date" data-ev="${e.id}" data-k="actualStart" value="${esc(e.actualStart || '')}"></td>
+            <td class="live"><input class="cell" type="date" data-ev="${e.id}" data-k="actualEnd" value="${esc(e.actualEnd || '')}"></td>
+
+            <td class="calc">${e.earliestDate ? shortDate(e.earliestDate) : '—'}${e.lateToStart ? '<span class="tag tag--warn" title="已經超過最晚開工日">逾期</span>' : ''}</td>
             <td class="calc">${e.latestDate ? shortDate(e.latestDate) : '—'}</td>
             <td class="calc">${e.inCycle ? '循環' : e.slack}</td>
+            <td class="small">${drift(e.driftFinish)}</td>
             <td class="no-print"><button type="button" class="btn btn--sm" data-act="delevent" data-id="${e.id}">✕</button></td>
-          </tr>`).join('')}
-          ${shown.length === 0 ? '<tr><td colspan="11" class="muted">沒有資料。回「① 快速建立」新增里程碑。</td></tr>' : ''}
+          </tr>
+          ${e.status === 'blocked' ? `<tr class="is-blocked-note">
+            <td colspan="15" class="small">
+              <span class="tag tag--warn">卡住了</span>
+              <input class="cell" style="max-width:640px" data-ev="${e.id}" data-k="note"
+                value="${esc(e.note || '')}" placeholder="卡在哪裡？要誰幫忙？（會顯示給專案負責人看）">
+            </td>
+          </tr>` : ''}`).join('')}
+          ${shown.length === 0 ? '<tr><td colspan="15" class="muted">沒有符合的資料。</td></tr>' : ''}
         </tbody>
       </table>
+    </div>
+
+    <div class="sub small">
+      <div><b>誰改什麼</b></div>
+      <div>· <b>專案負責人</b>改計畫：這件事幾天、誰負責、接在誰後面。</div>
+      <div>· <b>各里程碑負責人</b>只回報實際：狀態、實際開始／完成日、卡在哪。</div>
+      <div class="muted">現在是測試版，任何人都能改所有欄位。併入戰情室後，上面這條規則會變成資料庫的權限限制。</div>
     </div>
   </section>`;
 }
@@ -420,7 +533,7 @@ function paneCards() {
           ${e.critical ? '<span class="tag tag--warn">要徑</span>' : ''}
         </div>
         <div class="mcard__grid">
-          <div class="mcard__cell"><span class="mcard__k">責任</span><span class="mcard__v">${esc(e.resp) || '—'}</span></div>
+          <div class="mcard__cell"><span class="mcard__k">負責人</span><span class="mcard__v">${esc(e.assigneeName) || '—'}</span></div>
           <div class="mcard__cell"><span class="mcard__k">時間</span><span class="mcard__v">${e.days} 天</span></div>
           <div class="mcard__cell"><span class="mcard__k">預算</span><span class="mcard__v">${e.budget ? money(e.budget) : '—'}</span></div>
           <div class="mcard__cell"><span class="mcard__k">彈性時間</span><span class="mcard__v">${e.inCycle ? '循環' : e.slack + ' 天'}</span></div>
@@ -433,7 +546,8 @@ function paneCards() {
         </div>
         <div class="mcard__foot">
           <span class="tag">${esc(e.track || '其他')}</span>
-          ${e.done ? '<span class="pill pill--green"><span class="pill__dot"></span>已完成</span>' : ''}
+          <span class="pill pill--${e.status === 'done' ? 'green' : e.status === 'blocked' ? 'red' : e.status === 'doing' ? 'yellow' : 'grey'}"><span class="pill__dot"></span>${STATUS[e.status].label}</span>
+          ${e.driftFinish > 0 ? `<span class="tag tag--warn">比計畫晚 ${e.driftFinish} 天</span>` : ''}
         </div>
       </article>`).join('')}
     </div>
@@ -518,6 +632,46 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (state.modal.type === 'people') {
+    const used = new Map();
+    for (const p of state.projects) {
+      for (const e of (p.events || [])) {
+        if (e.assigneeName) used.set(e.assigneeName, (used.get(e.assigneeName) || 0) + 1);
+      }
+    }
+    return `
+    <div style="position:fixed;inset:0;background:rgba(26,38,56,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50">
+      <div class="card" style="max-width:560px;width:100%;max-height:85vh;overflow:auto">
+        <div class="card__head">
+          <h2 class="card__title">人員名單</h2>
+          <button type="button" class="btn btn--sm" data-act="closemodal">關閉</button>
+        </div>
+        <div class="alert alert--warn small">
+          這份名單是<b>暫用的</b>，只存在你這台瀏覽器。併入 WINEX 戰情室後會改成直接讀戰情室的人員與權限，
+          到時候這裡不用再自己維護，指派也才會真的通知到對方。
+        </div>
+        <div class="row">
+          <input class="input grow" id="pname" placeholder="姓名" autocomplete="off">
+          <input class="input" id="pdept" placeholder="部門（可空白）" style="max-width:160px" autocomplete="off">
+          <button type="button" class="btn btn--primary" data-act="addperson">加入</button>
+        </div>
+        <div class="list">
+          ${state.people.length === 0
+            ? '<div class="sub small muted">還沒有人員。先加幾個人，表格的「負責人」欄就能直接挑。</div>'
+            : state.people.map(p => `
+              <div class="list__item">
+                <span>${esc(p.name)}${p.dept ? `<span class="small muted">　${esc(p.dept)}</span>` : ''}</span>
+                <span class="row small">
+                  ${used.get(p.name) ? `<span class="tag">負責 ${used.get(p.name)} 項</span>` : ''}
+                  <button type="button" class="btn btn--sm" data-act="delperson" data-id="${p.id}">移除</button>
+                </span>
+              </div>`).join('')}
+        </div>
+        <div class="small muted">移除人員不會動到已經指派出去的里程碑——姓名會原樣保留。</div>
+      </div>
+    </div>`;
+  }
+
   return '';
 }
 
@@ -620,12 +774,14 @@ function csvOf() {
   const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
   const rows = [
     ['專案', p.title], ['目標', p.goal], ['起始日', p.startDate], ['截止日', p.dueDate], [],
-    ['#', '里程碑事件', '責任', '區塊', '時間(天)', '預算', '前置事件', '最早日期', '最晚日期', '彈性(天)', '要徑', '已完成'],
+    ['#', '里程碑事件', '負責人', '區塊', '時間(天)', '預算', '前置事件',
+     '計畫開始', '狀態', '實際開始', '實際完成', '預計開始', '最晚日期', '彈性(天)', '和計畫差(天)', '要徑', '備註'],
   ];
   evs.forEach((e, i) => rows.push([
-    i + 1, e.name, e.resp, e.track || '其他', e.days, e.budget,
-    e.deps.map(nameOf).join('、'), e.earliestDate, e.latestDate, e.slack,
-    e.critical ? '是' : '', e.done ? '是' : '',
+    i + 1, e.name, e.assigneeName, e.track || '其他', e.days, e.budget,
+    e.deps.map(nameOf).join('、'), e.planStart, STATUS[e.status].label,
+    e.actualStart, e.actualEnd, e.earliestDate, e.latestDate, e.slack,
+    e.driftFinish, e.critical ? '是' : '', e.note || '',
   ]));
   const t = state.computed.totals;
   rows.push([], ['合計', '', '', '', t.naturalEndDays + ' 天', t.budget]);
@@ -652,6 +808,24 @@ document.addEventListener('click', async (ev) => {
   if (act === 'tab') { state.tab = el.dataset.tab; render(); return; }
   if (act === 'track') { state.filterTrack = el.dataset.t; render(); return; }
   if (act === 'togglelinks') { state.showLinks = !state.showLinks; render(); return; }
+  if (act === 'who') { state.filterWho = el.dataset.w; render(); return; }
+  if (act === 'people') { state.modal = { type: 'people' }; render(); return; }
+
+  if (act === 'addperson') {
+    const name = $('#pname')?.value?.trim();
+    const dept = $('#pdept')?.value?.trim();
+    if (!name) return;
+    state.people = await Store.addPerson(name, dept);
+    render();
+    $('#pname')?.focus();
+    return;
+  }
+
+  if (act === 'delperson') {
+    state.people = await Store.removePerson(el.dataset.id);
+    render();
+    return;
+  }
 
   if (act === 'setname') {
     const n = prompt('你的姓名（會顯示在專案上）', state.me?.name || '');
@@ -745,10 +919,37 @@ document.addEventListener('change', async (ev) => {
     const e = state.project.events.find(x => x.id === t.dataset.ev);
     if (!e) return;
     const k = t.dataset.k;
-    e[k] = (k === 'done') ? t.checked : (k === 'days' || k === 'budget') ? Number(t.value) || 0 : t.value;
+
+    if (k === 'assigneeId') {
+      if (t.value === '__keep__') return;                 // 維持原本不在名單裡的姓名
+      const p = state.people.find(x => x.id === t.value);
+      e.assigneeId = p ? p.id : '';
+      e.assigneeName = p ? p.name : '';
+      e.resp = e.assigneeName;
+    } else if (k === 'status') {
+      e.status = t.value;
+      // 狀態與實際日期互相補齊，少打幾次字
+      if (e.status === 'doing' && !e.actualStart) e.actualStart = todayIso();
+      if (e.status === 'done') {
+        if (!e.actualStart) e.actualStart = todayIso();
+        if (!e.actualEnd) e.actualEnd = todayIso();
+      }
+      if (e.status !== 'done') e.actualEnd = '';
+    } else if (k === 'actualStart' || k === 'actualEnd') {
+      e[k] = t.value;
+      if (k === 'actualStart' && t.value && e.status === 'todo') e.status = 'doing';
+      if (k === 'actualEnd' && t.value) {
+        e.status = 'done';
+        if (!e.actualStart) e.actualStart = t.value;
+      }
+      if (k === 'actualEnd' && !t.value && e.status === 'done') e.status = 'doing';
+    } else {
+      e[k] = (k === 'days' || k === 'budget') ? Number(t.value) || 0 : t.value;
+    }
+
     recompute(); await persist();
-    // 名稱／責任等文字欄位不整頁重繪，避免打字時失焦
-    if (k === 'days' || k === 'budget' || k === 'done' || k === 'track') render();
+    // 純文字欄位不整頁重繪，避免打字時失焦
+    if (k !== 'name' && k !== 'note') render();
     return;
   }
 });
@@ -780,6 +981,7 @@ document.addEventListener('input', (ev) => {
    ============================================================ */
 (async function init() {
   state.me = await Store.me();
+  state.people = await Store.listPeople();
   await reloadProjects();
   recompute();
   render();

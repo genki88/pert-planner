@@ -74,14 +74,14 @@ function graphSvgMarkup(evs, lay, opt = {}) {
     const nm = e.name || '（未命名）';
     const l1 = nm.length > 13 ? nm.slice(0, 13) : nm;
     const l2 = nm.length > 13 ? (nm.length > 26 ? nm.slice(13, 25) + '…' : nm.slice(13)) : '';
-    const meta = `${e.days}天${e.resp ? ' · ' + esc(e.resp.slice(0, 6)) : ''}`
+    const meta = `${e.days}天${e.assigneeName ? ' · ' + esc(e.assigneeName.slice(0, 6)) : ''}`
       + ` · ${e.earliestDate ? shortDate(e.earliestDate) : ''}${e.latestDate ? '｜' + shortDate(e.latestDate) : ''}`;
     parts.push(`<g class="gnode ${e.critical ? 'is-critical' : ''} ${e.done ? 'is-done' : ''}" transform="translate(${p.x},${p.y})">
       <rect width="${NW}" height="${NH}" rx="6"></rect>
       <text class="gt-name" x="8" y="16">${esc(l1)}</text>
       ${l2 ? `<text class="gt-name" x="8" y="29">${esc(l2)}</text>` : ''}
       <text class="gt-meta" x="8" y="${NH - 8}">${meta}</text>
-      <title>${esc(nm)}\n責任：${esc(e.resp) || '—'}\n時間：${e.days} 天　預算：${money(e.budget)}\n最早：${e.earliestDate || '—'}　最晚：${e.latestDate || '—'}\n彈性：${e.slack} 天</title>
+      <title>${esc(nm)}\n負責人：${esc(e.assigneeName) || '—'}\n時間：${e.days} 天　預算：${money(e.budget)}\n最早：${e.earliestDate || '—'}　最晚：${e.latestDate || '—'}\n彈性：${e.slack} 天</title>
     </g>`);
   }
 
@@ -284,16 +284,19 @@ function buildPrintTable() {
     ${printHeader('里程碑表格')}
     <table class="table pr-table">
       <thead><tr>
-        <th>#</th><th>里程碑事件</th><th>責任</th><th>區塊</th><th>天數</th><th>預算</th>
-        <th>前置事件</th><th>最早日期</th><th>最晚日期</th><th>彈性</th><th>完成</th>
+        <th>#</th><th>里程碑事件</th><th>負責人</th><th>區塊</th><th>天數</th><th>預算</th>
+        <th>前置事件</th><th>狀態</th><th>實際開始</th><th>實際完成</th><th>預計開始</th><th>最晚日期</th><th>彈性</th><th>差(天)</th>
       </tr></thead>
       <tbody>
         ${evs.map((e, i) => `<tr class="${e.critical ? 'is-critical' : ''}">
-          <td>${i + 1}</td><td>${esc(e.name)}</td><td>${esc(e.resp)}</td><td>${esc(e.track || '其他')}</td>
+          <td>${i + 1}</td><td>${esc(e.name)}</td><td>${esc(e.assigneeName || '')}</td><td>${esc(e.track || '其他')}</td>
           <td class="num">${e.days}</td><td class="num">${e.budget ? money(e.budget) : ''}</td>
           <td class="small">${esc(e.deps.map(nameOf).join('、'))}</td>
+          <td>${STATUS[e.status].label}</td>
+          <td class="num">${e.actualStart || ''}</td><td class="num">${e.actualEnd || ''}</td>
           <td class="num">${e.earliestDate || ''}</td><td class="num">${e.latestDate || ''}</td>
-          <td class="num">${e.inCycle ? '循環' : e.slack}</td><td>${e.done ? '✓' : ''}</td>
+          <td class="num">${e.inCycle ? '循環' : e.slack}</td>
+          <td class="num">${e.driftFinish > 0 ? '+' + e.driftFinish : (e.driftFinish || '')}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -310,7 +313,7 @@ function buildPrintCards(per) {
       ${evs.map(e => `<article class="mcard ${e.critical ? 'is-critical' : ''} ${e.done ? 'is-done' : ''}">
         <div class="mcard__name"><span>${esc(e.name || '（未命名）')}</span>${e.critical ? '<span class="tag tag--warn">要徑</span>' : ''}</div>
         <div class="mcard__grid">
-          <div class="mcard__cell"><span class="mcard__k">責任</span><span class="mcard__v">${esc(e.resp) || '—'}</span></div>
+          <div class="mcard__cell"><span class="mcard__k">負責人</span><span class="mcard__v">${esc(e.assigneeName) || '—'}</span></div>
           <div class="mcard__cell"><span class="mcard__k">時間</span><span class="mcard__v">${e.days} 天</span></div>
           <div class="mcard__cell"><span class="mcard__k">預算</span><span class="mcard__v">${e.budget ? money(e.budget) : '—'}</span></div>
           <div class="mcard__cell"><span class="mcard__k">彈性時間</span><span class="mcard__v">${e.inCycle ? '循環' : e.slack + ' 天'}</span></div>

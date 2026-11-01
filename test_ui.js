@@ -99,7 +99,7 @@ const setVal = async (w, sel, v, evName = 'change') => {
   await click(w, '[data-act="newfrom"][data-key="birdhouse"]');
   ok('進到專案頁', !!w.document.querySelector('[data-act="tab"]'), '找不到頁籤');
   eq('專案名稱已填', w.document.querySelector('[data-field="title"]').value, '鳥舍（教學範例）');
-  ok('起始日有值', /^\d{4}-08-01$/.test(w.document.querySelector('[data-field="startDate"]').value));
+  eq('起始日＝今天', w.document.querySelector('[data-field="startDate"]').value, require('./public/pert.js').todayLocalIso());
   ok('KPI 顯示 4 個里程碑', txt(w).includes('4'));
   ok('快速建立頁在問倒推問題', txt(w).includes('必須先完成什麼'));
   ok('流程清單有四個事件', txt(w).includes('安裝鳥舍'));
@@ -107,29 +107,76 @@ const setVal = async (w, sel, v, evName = 'change') => {
   console.log('\n=== ③ 表格頁：自動算出的日期要出現在畫面上 ===');
   await click(w, '[data-act="tab"][data-tab="table"]');
   const t = txt(w);
-  ok('畫面出現最早日期 8-1', t.includes('8-1'), '→ ' + t.slice(t.indexOf('里程碑事件'), t.indexOf('里程碑事件') + 200));
-  ok('畫面出現最晚日期 8-10', t.includes('8-10'));
+  // 鳥舍範本：今天起算 4 件事共 6 天、截止日 +9 天
+  const d0 = new Date(); const md = (n) => {
+    const x = new Date(d0.getTime() + n * 86400000);
+    return (x.getMonth() + 1) + '-' + x.getDate();
+  };
+  ok('畫面出現第一件事的最早日期（今天）', t.includes(md(0)), '→ 找不到 ' + md(0));
+  ok('畫面出現最後一件事的最晚日期', t.includes(md(9)), '→ 找不到 ' + md(9));
   ok('畫面出現彈性欄位', t.includes('彈性'));
+  ok('畫面有計畫／實際分組表頭', t.includes('計') && t.includes('實'));
   eq('表格列數=4', w.document.querySelectorAll('tbody tr').length, 4);
 
   console.log('\n=== ④ 改天數 → 日期要即時重算 ===');
   const daysInput = [...w.document.querySelectorAll('input[data-k="days"]')];
   eq('有 4 個天數欄', daysInput.length, 4);
-  // 把第一列（設計，1天）改成 5 天，後面日期應整串後移
   const firstRowName = w.document.querySelector('input[data-k="name"]').value;
   eq('第一列是設計', firstRowName, '設計和計劃鳥舍');
-  await setVal(w, 'input[data-k="days"]', '5');
+  await setVal(w, 'input[data-k="days"]', '9');
   const t4 = txt(w);
-  ok('改成 5 天後出現排不下警告', t4.includes('排不下'), '→ 未偵測到超出截止日');
-  ok('彈性變負', t4.includes('-'), '');
+  ok('改成 9 天後出現排不下警告', t4.includes('排不下'), '→ 未偵測到超出截止日');
 
-  // 改回 1 天
   await setVal(w, 'input[data-k="days"]', '1');
   ok('改回後警告消失', !txt(w).includes('排不下'));
 
-  console.log('\n=== ⑤ 勾「已完成」要記錄下來 ===');
-  await setVal(w, 'input[data-k="done"]', true);
-  ok('完成數變 1', txt(w).includes('已完成 1'), '→ ' + txt(w).slice(0, 0));
+  console.log('\n=== ⑤ 實際進度：回報狀態會寫進資料並重算 ===');
+  const statusSel = w.document.querySelector('select[data-k="status"]');
+  ok('表格有狀態欄', !!statusSel, '→ 找不到 status 下拉');
+  eq('四種狀態', statusSel ? statusSel.options.length : 0, 4);
+  ok('有「卡住了」狀態', statusSel && [...statusSel.options].some(o => o.text === '卡住了'));
+  ok('有實際開始欄', !!w.document.querySelector('input[data-k="actualStart"]'));
+  ok('有實際完成欄', !!w.document.querySelector('input[data-k="actualEnd"]'));
+
+  await setVal(w, 'select[data-k="status"]', 'done');
+  ok('完成度出現 25%', txt(w).includes('25%'), '→ ' + txt(w).slice(0, 0));
+  const saved0 = JSON.parse(w.localStorage.getItem('pert-projects-v1'))[0];
+  const firstEv = saved0.events.find(e => e.name === '設計和計劃鳥舍');
+  eq('狀態已存成 done', firstEv.status, 'done');
+  ok('自動補上實際開始日', !!firstEv.actualStart, '→ 沒自動帶日期');
+  ok('自動補上實際完成日', !!firstEv.actualEnd);
+
+  console.log('\n=== ⑤b 延誤回報 → 後面的日期跟著改（跨人連動） ===');
+  const beforeDates = [...w.document.querySelectorAll('td.calc')].map(td => td.textContent.trim());
+  // 把第一件事的實際完成日往後拖
+  await setVal(w, 'input[data-k="actualEnd"]', '2026-08-09');
+  const afterTxt = txt(w);
+  const afterDates = [...w.document.querySelectorAll('td.calc')].map(td => td.textContent.trim());
+  ok('下游日期有被改動', JSON.stringify(beforeDates) !== JSON.stringify(afterDates),
+    '→ 延誤沒有往下傳：' + afterDates.slice(0, 6).join(','));
+  ok('出現落後提示', afterTxt.includes('落後') || afterTxt.includes('排不下'),
+    '→ 沒有顯示落後：' + afterTxt.slice(0, 0));
+  ok('顯示「和計畫差」欄位', afterTxt.includes('和計畫差') || afterTxt.includes('晚'));
+
+  console.log('\n=== ⑤c 人員名單與指派 ===');
+  await click(w, '[data-act="people"]');
+  ok('人員名單開得起來', txt(w).includes('人員名單'));
+  ok('有講清楚是暫用名單', txt(w).includes('暫用'));
+  await setVal(w, '#pname', '王小明', 'input');
+  w.document.querySelector('#pname').value = '王小明';
+  await click(w, '[data-act="addperson"]');
+  ok('人員加進去了', txt(w).includes('王小明'), '→ 沒看到新人員');
+  await click(w, '[data-act="closemodal"]');
+
+  const asgn = w.document.querySelector('select[data-k="assigneeId"]');
+  ok('負責人欄是下拉選單', !!asgn, '→ 還是自由文字');
+  ok('下拉裡有剛加的人', [...asgn.options].some(o => o.text.includes('王小明')));
+  const opt = [...asgn.options].find(o => o.text.includes('王小明'));
+  await setVal(w, 'select[data-k="assigneeId"]', opt.value);
+  const saved1 = JSON.parse(w.localStorage.getItem('pert-projects-v1'))[0];
+  ok('姓名有存成快照', saved1.events.some(e => e.assigneeName === '王小明'),
+    '→ 沒存 assigneeName');
+  ok('畫面出現「我負責的」篩選', txt(w).includes('負責人：'));
 
   console.log('\n=== ⑥ 前置事件 modal 可開、可勾、會重算 ===');
   await click(w, '[data-act="deps"]');
@@ -161,7 +208,7 @@ const setVal = async (w, sel, v, evName = 'change') => {
   console.log('\n=== ⑨ 卡片檢視：六欄位都要在 ===');
   await click(w, '[data-act="tab"][data-tab="cards"]');
   const t9 = txt(w);
-  for (const k of ['責任', '時間', '預算', '最早日期', '最晚日期', '前置事件']) ok('卡片有「' + k + '」欄', t9.includes(k));
+  for (const k of ['負責人', '時間', '預算', '最早日期', '最晚日期', '前置事件']) ok('卡片有「' + k + '」欄', t9.includes(k));
   ok('卡片數 = 8', w.document.querySelectorAll('.mcard').length === 8, '實際 ' + w.document.querySelectorAll('.mcard').length);
 
   console.log('\n=== ⑨b 卡片連接線：依實際版面畫出箭頭（6 張鏈狀、第 5 張換行） ===');
@@ -226,7 +273,9 @@ const setVal = async (w, sel, v, evName = 'change') => {
   w.Blob = class { constructor(parts) { captured = String(parts[0]); } };
   await click(w, '[data-act="csv"]');
   ok('CSV 有 BOM', captured && captured.charCodeAt(0) === 0xFEFF);
-  ok('CSV 有中文表頭', captured && captured.includes('里程碑事件') && captured.includes('最早日期'));
+  ok('CSV 有中文表頭', captured && captured.includes('里程碑事件') && captured.includes('預計開始'));
+  ok('CSV 有實際進度欄', captured && captured.includes('實際開始') && captured.includes('狀態'));
+  ok('CSV 有落後天數欄', captured && captured.includes('和計畫差'));
   ok('CSV 含實際資料', captured && captured.includes('安裝鳥舍'));
   ok('CSV 含要徑欄', captured && captured.includes('要徑'));
 
@@ -298,7 +347,9 @@ const setVal = async (w, sel, v, evName = 'change') => {
   const saved = JSON.parse(raw);
   eq('存了 1 個專案', saved.length, 1);
   eq('事件數 8', saved[0].events.length, 8);
-  ok('已完成狀態有存', saved[0].events.some(e => e.done === true));
+  ok('已完成狀態有存', saved[0].events.some(e => e.status === 'done'));
+  ok('實際日期有存', saved[0].events.some(e => !!e.actualEnd));
+  ok('負責人有存', saved[0].events.some(e => e.assigneeName === '王小明'));
 
   console.log('\n=== ⑬ 回清單 → 再開 → 狀態正確 ===');
   await click(w, '[data-act="go"][data-view="home"]');
@@ -312,9 +363,19 @@ const setVal = async (w, sel, v, evName = 'change') => {
   await click(w, '[data-act="newfrom"][data-key="scalable"]');
   const sd = w.document.querySelector('[data-field="startDate"]').value;
   const dd = w.document.querySelector('[data-field="dueDate"]').value;
-  ok('截止日比起始日晚一年', Number(dd.slice(0, 4)) === Number(sd.slice(0, 4)) + 1, `${sd} → ${dd}`);
+  const today = require('./public/pert.js').todayLocalIso();
+  eq('起始日就是今天（不會一建立就逾期）', sd, today);
+  ok('截止日在一年多以後', (Date.parse(dd) - Date.parse(sd)) / 86400000 > 400, `${sd} → ${dd}`);
   ok('沒有誤報排不下', !txt(w).includes('排不下'), '→ 仍顯示排不下');
+  ok('沒有誤報落後', !txt(w).includes('落後計畫'), '→ 新建立的專案不該落後');
   ok('41 個里程碑', txt(w).includes('41'));
+
+  console.log('\n=== ⑭b 今天要用本地時區算（台灣半夜不能變成昨天） ===');
+  const localToday = require('./public/pert.js').todayLocalIso();
+  const utcToday = new Date().toISOString().slice(0, 10);
+  ok('新專案起始日用本地日期，不是 UTC',
+    w.document.querySelector('[data-field="startDate"]').value === localToday,
+    `畫面=${w.document.querySelector('[data-field="startDate"]').value} 本地=${localToday} UTC=${utcToday}`);
 
   console.log('\n=== ⑮ 空白專案：從零倒推 ===');
   await click(w, '[data-act="go"][data-view="home"]');
