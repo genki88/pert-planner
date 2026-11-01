@@ -233,9 +233,74 @@
 hr.sep { border: none; border-top: 1px solid var(--c-divider); margin: 4px 0; }
 
 /* ---------- 列印 ---------- */
+#printarea { display: none; }
+
+.gedge.is-carry { stroke-dasharray: 3 3; }
+.gt-carry { font-size: 8px; fill: var(--c-text-muted); font-family: var(--font-sans); }
+
+/* 列印專區的版面（螢幕上不會出現） */
+.pr-page { break-after: page; page-break-after: always; }
+.pr-page:last-child { break-after: auto; page-break-after: auto; }
+.pr-head { border-bottom: 2px solid #1A1D21; padding-bottom: 5px; margin-bottom: 8px; }
+.pr-title { font-family: var(--font-serif); font-size: 17px; font-weight: 700; color: #000; }
+.pr-kind { font-family: var(--font-sans); font-size: 11px; font-weight: 400; color: #5B6068; margin-left: 10px; }
+.pr-goal { font-size: 11px; color: #1A1D21; margin-top: 2px; }
+.pr-meta { font-size: 10px; color: #2B2F35; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.pr-crit { font-size: 9.5px; color: #8E1F17; margin-top: 3px; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pr-legend { display: flex; gap: 10px; align-items: center; font-size: 9px; color: #5B6068; margin-top: 4px; flex-wrap: wrap; }
+.pr-lg { padding: 0 6px; border: 1px solid #DEDAD2; border-radius: 3px; }
+.pr-lg--crit { border-color: #C0362C; background: #FBE3DF; color: #8E1F17; }
+.pr-lg--done { border-color: #2F7A4B; background: #E7F1EA; color: #1F5A36; }
+.pr-when { margin-left: auto; }
+.pr-cont { font-size: 9px; color: #5B6068; margin-bottom: 4px; }
+.pr-graph--fit svg { width: 100%; height: auto; max-height: 150mm; }
+.pr-table { font-size: 9px; }
+.pr-table th, .pr-table td { padding: 3px 4px; height: auto; }
+.pr-table tr.is-critical td { background: #FBE3DF; }
+
 @media print {
-  .topnav, .tabs, .no-print, .btn { display: none !important; }
+  .topnav, .tabs, .no-print { display: none !important; }
   body { background: #fff; }
   .page { padding: 0; max-width: none; }
   .card, .mcard { break-inside: avoid; }
+
+  /* 按了列印按鈕 → 只印 #printarea，跟目前在哪個頁籤無關 */
+  body.is-printing #root { display: none !important; }
+  body.is-printing #printarea { display: block !important; }
+
+  /* 卡片列印：一頁 3 張 / 2 張 / 一張一頁（貼牆） */
+  body.is-printing .mcard { border-width: 1.5px; }
+  body.is-printing .mcard__foot { display: none; }
+
+  body.is-printing .pr-cards--3 .mcards { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  body.is-printing .pr-cards--3 .mcard__name { font-size: 11px; padding: 6px 8px; }
+  body.is-printing .pr-cards--3 .mcard__cell { min-height: 38px; padding: 4px 8px; }
+  body.is-printing .pr-cards--3 .mcard__v { font-size: 10px; }
+  body.is-printing .pr-cards--3 .mcard__k { font-size: 8px; }
+
+  body.is-printing .pr-cards--2 .mcards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  body.is-printing .pr-cards--2 .mcard__name { font-size: 15px; padding: 9px 11px; }
+  body.is-printing .pr-cards--2 .mcard__cell { min-height: 54px; padding: 7px 11px; }
+  body.is-printing .pr-cards--2 .mcard__v { font-size: 14px; }
+  body.is-printing .pr-cards--2 .mcard__k { font-size: 10px; }
+
+  /* 一張一頁：整張 A4 放到最大，站在三公尺外也看得到 */
+  body.is-printing .pr-cards--1 .mcards { grid-template-columns: 1fr; gap: 0; }
+  body.is-printing .pr-cards--1 .mcard {
+    break-after: page; page-break-after: always;
+    border-width: 3px; height: 246mm; justify-content: flex-start;
+  }
+  body.is-printing .pr-cards--1 .mcard:last-child { break-after: auto; page-break-after: auto; }
+  body.is-printing .pr-cards--1 .mcard__name { font-size: 34px; padding: 18px 20px; line-height: 1.25; }
+  body.is-printing .pr-cards--1 .mcard__grid { flex: 1; }
+  body.is-printing .pr-cards--1 .mcard__cell { min-height: 46mm; padding: 14px 20px; }
+  body.is-printing .pr-cards--1 .mcard__k { font-size: 15px; margin-bottom: 6px; }
+  body.is-printing .pr-cards--1 .mcard__v { font-size: 30px; font-weight: 700; }
+  body.is-printing .pr-cards--1 .mcard__v.small { font-size: 18px; font-weight: 400; }
+  body.is-printing .pr-cards--1 .tag--warn { font-size: 18px; padding: 4px 12px; }
+  body.is-printing .pr-cards--1 .pr-head { margin-bottom: 10px; }
+
+  /* 直接按 Ctrl+P（沒按按鈕）時，螢幕上的按鈕類元素不要印出來 */
+  body:not(.is-printing) .btn { display: none !important; }
 }

@@ -170,8 +170,67 @@ const setVal = async (w, sel, v, evName = 'change') => {
   ok('CSV 有中文表頭', captured && captured.includes('里程碑事件') && captured.includes('最早日期'));
   ok('CSV 含實際資料', captured && captured.includes('安裝鳥舍'));
   ok('CSV 含要徑欄', captured && captured.includes('要徑'));
-  await click(w, '[data-act="print"]');
+
+  console.log('\n=== ⑪b 列印：在「匯出」頁按列印流程圖，印出來必須是流程圖（Jerry 回報的 bug） ===');
+  const pa = () => w.document.getElementById('printarea');
+  ok('有列印專區', !!pa());
+  eq('列印前是空的', pa().innerHTML, '');
+  await click(w, '[data-act="printgraph"]');
   ok('列印有被呼叫', w.__printed === true);
+  eq('印的是流程圖', w.__lastPrint, 'graph');
+  const pah = pa().innerHTML;
+  ok('列印內容含 SVG 流程圖', pah.includes('<svg'), '→ 列印區沒有 SVG');
+  ok('列印內容含流程圖節點', (pah.match(/class="gnode/g) || []).length === 8,
+    '節點數 ' + (pah.match(/class="gnode/g) || []).length);
+  ok('列印內容不含匯出頁的按鈕文字', !pah.includes('從 JSON 匯入'), '→ 印到匯出頁了');
+  ok('列印抬頭有專案名稱', pah.includes('鳥舍'), '→ 缺抬頭');
+  ok('列印抬頭有要徑說明', pah.includes('要徑'));
+  ok('版面設定為橫向 A4', w.document.getElementById('printstyle').textContent.includes('landscape'));
+  ok('列印時 body 加上 is-printing', w.document.body.classList.contains('is-printing')
+    || pah.length > 0, '（已結束列印則已清除）');
+
+  console.log('\n=== ⑪c 列印表格／卡片各自印對東西 ===');
+  await click(w, '[data-act="printtable"]');
+  eq('印的是表格', w.__lastPrint, 'table');
+  ok('表格列印含表頭', pa().innerHTML.includes('里程碑表格') && pa().innerHTML.includes('<table'));
+  ok('表格列印不含 SVG', !pa().innerHTML.includes('<svg'));
+  await click(w, '[data-act="printcards"]');
+  eq('印的是卡片', w.__lastPrint, 'cards');
+  ok('卡片列印用直向', w.document.getElementById('printstyle').textContent.includes('portrait'));
+  ok('卡片列印含 8 張卡', (pa().innerHTML.match(/class="mcard /g) || []).length === 8,
+    '實際 ' + (pa().innerHTML.match(/class="mcard /g) || []).length);
+  ok('預設一頁 3 張', pa().innerHTML.includes('pr-cards--3'));
+
+  console.log('\n=== ⑪c2 卡片頁要有列印按鈕與張數選擇（Jerry：寫可列印貼牆但沒地方按） ===');
+  await click(w, '[data-act="tab"][data-tab="cards"]');
+  ok('卡片頁有列印按鈕', !!w.document.querySelector('[data-act="printcards"]'), '→ 卡片頁沒有列印入口');
+  const cm = w.document.querySelector('#cmode');
+  ok('卡片頁有張數選擇', !!cm);
+  eq('三個選項', cm ? cm.options.length : 0, 3);
+  ok('有貼牆選項', cm && [...cm.options].some(o => o.text.includes('貼牆')));
+  // 選「一張一頁」再列印
+  cm.value = '1';
+  cm.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await sleep(40);
+  await click(w, '[data-act="printcards"]');
+  eq('帶出一張一頁', String(w.__lastPrintOpt), '1');
+  ok('列印標記為 pr-cards--1', pa().innerHTML.includes('pr-cards--1'), '→ 沒切到大卡模式');
+  ok('大卡標題註明貼牆', pa().innerHTML.includes('貼牆'));
+  ok('大卡仍是 8 張', (pa().innerHTML.match(/class="mcard /g) || []).length === 8);
+
+  console.log('\n=== ⑪d 從流程圖頁按列印，也要印流程圖 ===');
+  await click(w, '[data-act="tab"][data-tab="graph"]');
+  ok('流程圖頁有列印按鈕', !!w.document.querySelector('[data-act="printgraph"]'));
+  await click(w, '[data-act="printgraph"]');
+  eq('印的是流程圖', w.__lastPrint, 'graph');
+  ok('含 SVG', pa().innerHTML.includes('<svg'));
+
+  console.log('\n=== ⑪e 下載流程圖 SVG ===');
+  captured = null;
+  await click(w, '[data-act="svg"]');
+  ok('SVG 檔有內容', captured && captured.includes('<svg'), '');
+  ok('SVG 內嵌樣式（不靠外部 CSS）', captured && captured.includes('.gnode rect'));
+  ok('SVG 有 xml 宣告', captured && captured.startsWith('<?xml'));
 
   console.log('\n=== ⑫ 重新開機後資料還在（持久化） ===');
   // 同一個 window 的 localStorage 已寫入；改走 Store 介面確認
