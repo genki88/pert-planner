@@ -170,6 +170,46 @@
 .col-mid { width: 130px; }
 .col-budget { width: 112px; }
 .col-track { width: 104px; }
+.col-date { width: 140px; }
+
+/* 欄位多的時候讓表格橫向捲動，而不是把每一欄壓扁 */
+.table--wide { min-width: 1580px; }
+.table--wide td .btn {
+  display: block; width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: left; padding: 0 8px;
+}
+.table select.cell { min-width: 86px; }
+.table--wide th, .table--wide td { white-space: nowrap; }
+
+/* 表頭分組：計畫 / 實際 / 系統算 */
+.table th.grp {
+  text-align: center;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  background: var(--c-surface-sub);
+  border-bottom: 1px solid var(--c-border);
+}
+.table th.grp--live { background: #FFF7E8; color: #6E4E00; }
+.table th.grp--calc { background: var(--c-accent-tint); color: var(--c-accent); }
+.table td.live { background: #FFFCF5; }
+.table td.plan { color: var(--c-text-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.cell--status { font-weight: 700; }
+.status--todo { color: var(--c-text-muted); }
+.status--doing { color: var(--l-yellow-text); }
+.status--done { color: var(--l-green-text); }
+.status--blocked { color: var(--l-red-text); }
+
+.late { color: var(--l-red-text); font-weight: 700; }
+.early { color: var(--l-green-text); font-weight: 700; }
+
+.table tr.is-blocked td { background: var(--l-red-bg); }
+.table tr.is-blocked-note td { background: var(--l-red-bg); border-bottom: 2px solid var(--c-border); }
+
+.pill--grey { background: var(--c-surface-sub); color: var(--c-text-muted); }
+.pill--grey .pill__dot { background: var(--c-text-faint); }
 
 /* ---------- 相依選擇器 ---------- */
 .deps {
