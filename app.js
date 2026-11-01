@@ -315,6 +315,7 @@ function paneTable() {
       <h2 class="card__title">里程碑表格</h2>
       <div class="row no-print">
         <button type="button" class="btn btn--sm btn--primary" data-act="addrow">＋ 新增一列</button>
+        <button type="button" class="btn btn--sm" data-act="printtable">🖨 列印表格</button>
       </div>
     </div>
 
@@ -383,7 +384,23 @@ function paneCards() {
   <section class="card">
     <div class="card__head">
       <h2 class="card__title">里程碑卡片</h2>
-      <span class="small muted">還原手冊上的六欄位卡片，可直接列印貼牆</span>
+      <div class="row small">
+        <span class="pill pill--red"><span class="pill__dot"></span>要徑</span>
+        <span class="pill pill--green"><span class="pill__dot"></span>已完成</span>
+      </div>
+    </div>
+    <div class="row no-print">
+      <button type="button" class="btn btn--primary" data-act="printcards">🖨 列印卡片</button>
+      <select class="select" id="cmode" style="min-width:230px">
+        <option value="3">一頁 3 張（存檔／發給大家）</option>
+        <option value="2">一頁 2 張（開會討論）</option>
+        <option value="1">一張一頁 · 放到最大（貼牆用）</option>
+      </select>
+      <span class="small muted">共 ${evs.length} 張</span>
+    </div>
+    <div class="small muted">
+      這就是手冊上那張六欄位卡片。要貼牆追進度就選「一張一頁」，印出來一張 A4 一個里程碑，
+      上面的最早／最晚日期是系統算的，誰負責、幾天、多少預算一眼看完。
     </div>
   </section>
   <div class="mcards">
@@ -414,85 +431,36 @@ function paneCards() {
   ${evs.length === 0 ? '<section class="card"><div class="sub small muted">沒有里程碑。</div></section>' : ''}`;
 }
 
-/* ---------------- ④ 流程圖 ---------------- */
-function paneGraph() {
-  const evs = state.computed.events;
-  if (!evs.length) return '<section class="card"><div class="sub small muted">沒有里程碑可畫。</div></section>';
-
-  const NW = 164, NH = 50, GX = 56, GY = 18;
-  const layers = layerize(evs);
-  const pos = new Map();
-  layers.forEach((layer, li) => {
-    layer.forEach((e, i) => {
-      pos.set(e.id, { x: 20 + li * (NW + GX), y: 20 + i * (NH + GY) });
-    });
-  });
-  const maxRows = Math.max(...layers.map(l => l.length));
-  const W = 40 + layers.length * (NW + GX);
-  const H = 40 + maxRows * (NH + GY);
-  const byId = new Map(evs.map(e => [e.id, e]));
-
-  const edges = [];
-  for (const e of evs) {
-    for (const d of e.deps) {
-      if (!pos.has(d) || !pos.has(e.id)) continue;
-      const a = pos.get(d), b = pos.get(e.id);
-      const x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x, y2 = b.y + NH / 2;
-      const mid = (x1 + x2) / 2;
-      const crit = byId.get(d)?.critical && e.critical;
-      edges.push(`<path class="gedge ${crit ? 'is-critical' : ''}" d="M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}" marker-end="url(#ah)"/>`);
-    }
-  }
-
-  const nodes = evs.map(e => {
-    const p = pos.get(e.id);
-    const label = e.name.length > 13 ? e.name.slice(0, 13) + '…' : e.name;
-    const label2 = e.name.length > 13 ? e.name.slice(13, 26) : '';
-    return `<g class="gnode ${e.critical ? 'is-critical' : ''} ${e.done ? 'is-done' : ''}" transform="translate(${p.x},${p.y})">
-      <rect width="${NW}" height="${NH}" rx="6"></rect>
-      <text class="gt-name" x="8" y="16">${esc(label)}</text>
-      ${label2 ? `<text class="gt-name" x="8" y="29">${esc(label2)}</text>` : ''}
-      <text class="gt-meta" x="8" y="${NH - 8}">${e.days}天${e.resp ? ' · ' + esc(e.resp.slice(0, 6)) : ''} · ${e.earliestDate ? shortDate(e.earliestDate) : ''}${e.latestDate ? '｜' + shortDate(e.latestDate) : ''}</text>
-      <title>${esc(e.name)}\n責任：${esc(e.resp) || '—'}\n時間：${e.days} 天　預算：${money(e.budget)}\n最早：${e.earliestDate || '—'}　最晚：${e.latestDate || '—'}\n彈性：${e.slack} 天</title>
-    </g>`;
-  }).join('');
-
-  return `
-  <section class="card">
-    <div class="card__head">
-      <h2 class="card__title">PERT 流程圖</h2>
-      <div class="row small">
-        <span class="pill pill--red"><span class="pill__dot"></span>要徑</span>
-        <span class="pill pill--green"><span class="pill__dot"></span>已完成</span>
-      </div>
-    </div>
-    <div class="small muted">由左到右＝時間順序，同一欄＝可以並行。框內第二行是「天數 · 負責人 · 最早日｜最晚日」。滑過節點看完整資料。</div>
-    <div class="graph-wrap">
-      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,0 L8,4 L0,8 z" fill="var(--c-accent-dash)"></path>
-          </marker>
-        </defs>
-        ${edges.join('')}
-        ${nodes}
-      </svg>
-    </div>
-  </section>`;
-}
-
 /* ---------------- ⑤ 匯出 ---------------- */
 function paneExport() {
   const t = state.computed.totals;
   return `
   <section class="card">
-    <h2 class="card__title">匯出與列印</h2>
+    <h2 class="card__title">列印 / 存成 PDF</h2>
+    <div class="small muted">印什麼不受你現在在哪個頁籤影響，按哪個就印哪個。</div>
     <div class="row">
-      <button type="button" class="btn btn--primary" data-act="csv">下載 CSV（Excel 可直接開）</button>
-      <button type="button" class="btn" data-act="json">下載 JSON（備份／轉移）</button>
-      <button type="button" class="btn" data-act="print">列印 / 存成 PDF</button>
+      <button type="button" class="btn btn--primary" data-act="printgraph">🖨 PERT 流程圖</button>
+      <button type="button" class="btn" data-act="printtable">🖨 里程碑表格</button>
+      <button type="button" class="btn" data-act="printcards">🖨 里程碑卡片</button>
+      <select class="select" id="cmode" style="min-width:200px">
+        <option value="3">卡片：一頁 3 張</option>
+        <option value="2">卡片：一頁 2 張</option>
+        <option value="1">卡片：一張一頁（貼牆）</option>
+      </select>
     </div>
-    <div class="small muted">CSV 已加上 BOM，Excel 開繁體中文不會變亂碼。列印會自動隱藏按鈕與頁籤。</div>
+    <div class="small muted">
+      流程圖與表格會自動用<b>橫向 A4</b>；卡片用直向。每一頁都會帶上專案名稱、目標、日期與要徑，單獨拿去開會也看得懂。
+      流程圖太寬時會自動分段印、左側標出接續的前置事件。
+    </div>
+    <hr class="sep">
+    <h2 class="card__title">下載檔案</h2>
+    <div class="row">
+      <button type="button" class="btn btn--primary" data-act="csv">CSV（Excel 可直接開）</button>
+      <button type="button" class="btn" data-act="svg">流程圖 SVG（向量，可放大印 A1）</button>
+      <button type="button" class="btn" data-act="png">流程圖 PNG</button>
+      <button type="button" class="btn" data-act="json">JSON（備份／轉移）</button>
+    </div>
+    <div class="small muted">CSV 已加上 BOM，Excel 開繁體中文不會變亂碼。要貼牆的大圖用 SVG 拿去輸出店最清楚。</div>
     <hr class="sep">
     <h2 class="card__title">匯入</h2>
     <div class="row">
@@ -709,7 +677,12 @@ document.addEventListener('click', async (ev) => {
 
   if (act === 'csv') { download(`${state.project.title || 'PERT'}.csv`, csvOf(), 'text/csv;charset=utf-8'); return; }
   if (act === 'json') { download(`${state.project.title || 'PERT'}.json`, JSON.stringify(state.project, null, 2), 'application/json'); return; }
-  if (act === 'print') { window.print(); return; }
+  if (act === 'printgraph') { doPrint('graph', graphModeSelected()); return; }
+  if (act === 'printtable') { doPrint('table'); return; }
+  if (act === 'printcards') { doPrint('cards', cardsPerPageSelected()); return; }
+  if (act === 'svg') { downloadSvg(); return; }
+  if (act === 'png') { downloadPng(); return; }
+  if (act === 'print') { doPrint('graph', graphModeSelected()); return; }   // 舊入口：一律印流程圖
 
   if (act === 'importjson') {
     const f = $('#jsonfile')?.files?.[0];
