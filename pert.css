@@ -1,0 +1,241 @@
+/* ============================================================
+   PERT 專屬樣式 — 只引用 tokens.css 的變數
+   ============================================================ */
+
+/* ---------- 分頁籤 ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--c-border);
+  flex-wrap: wrap;
+}
+.tab {
+  font: inherit;
+  font-size: var(--fs-body);
+  min-height: var(--tap-min);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  border-radius: var(--r-control) var(--r-control) 0 0;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--c-text); }
+.tab.is-on {
+  background: var(--c-surface);
+  border-color: var(--c-border);
+  color: var(--c-text);
+  font-weight: 700;
+}
+
+/* ---------- 里程碑卡片（紙本六欄位還原） ---------- */
+.mcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--gap-card);
+}
+.mcard {
+  background: var(--c-surface);
+  border: 2px solid var(--c-text);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.mcard.is-critical { border-color: var(--l-red-dot); box-shadow: 0 0 0 3px var(--l-red-bg); }
+.mcard.is-done { opacity: .62; }
+.mcard__name {
+  padding: 12px 14px;
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  color: var(--c-text);
+  border-bottom: 2px solid var(--c-text);
+  background: var(--c-surface-sub);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.mcard__en {
+  font-size: var(--fs-tiny);
+  color: var(--c-text-faint);
+  font-weight: 400;
+  display: block;
+  letter-spacing: .4px;
+}
+.mcard__grid { display: grid; grid-template-columns: 1fr 1fr; }
+.mcard__cell {
+  padding: 8px 12px;
+  border-right: 1px solid var(--c-border);
+  border-bottom: 1px solid var(--c-border);
+  min-height: 56px;
+}
+.mcard__cell:nth-child(2n) { border-right: none; }
+.mcard__cell--full { grid-column: 1 / -1; }
+.mcard__k { font-size: var(--fs-tiny); color: var(--c-text-muted); display: block; }
+.mcard__v { font-size: var(--fs-body); color: var(--c-text); font-variant-numeric: tabular-nums; }
+.mcard__v--calc { color: var(--c-accent); font-weight: 700; }
+.mcard__foot {
+  padding: 8px 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  background: var(--c-surface-sub);
+}
+
+/* ---------- 快速輸入 ---------- */
+.quick {
+  background: var(--c-accent-tint);
+  border: 1px dashed var(--c-accent-dash);
+  border-radius: var(--r-card);
+  padding: var(--card-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+.quick__q {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--c-accent);
+  margin: 0;
+}
+.quick__chain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.quick__step {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-control);
+  padding: 6px 10px;
+  font-size: var(--fs-label);
+}
+.quick__num {
+  min-width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--c-accent); color: var(--c-on-accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--fs-tiny); font-weight: 700; flex: none;
+}
+
+/* ---------- 表格輸入模式 ---------- */
+.table input.cell,
+.table select.cell {
+  font: inherit;
+  width: 100%;
+  min-width: 60px;
+  min-height: 34px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-tag);
+  background: transparent;
+  color: var(--c-text);
+}
+.table input.cell:hover, .table select.cell:hover { border-color: var(--c-border); }
+.table input.cell:focus, .table select.cell:focus {
+  border-color: var(--c-accent);
+  background: var(--c-surface);
+  outline: 2px solid var(--c-accent);
+  outline-offset: 0;
+}
+.table input.cell--num { text-align: right; font-variant-numeric: tabular-nums; }
+.table td.calc { color: var(--c-accent); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table tr.is-critical td { background: var(--l-red-bg); }
+.table tr.is-done td { color: var(--c-text-faint); text-decoration-color: var(--c-border); }
+.col-narrow { width: 88px; }
+.col-mid { width: 130px; }
+.col-budget { width: 112px; }
+.col-track { width: 104px; }
+
+/* ---------- 相依選擇器 ---------- */
+.deps {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+.deps__chip {
+  font: inherit;
+  font-size: var(--fs-tiny);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text-body);
+  cursor: pointer;
+  max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deps__chip.is-on {
+  background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent);
+}
+
+/* ---------- PERT 網絡圖 ---------- */
+.graph-wrap {
+  overflow: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 8px;
+}
+.gnode { cursor: pointer; }
+.gnode rect { fill: var(--c-surface); stroke: var(--c-text); stroke-width: 1.5; }
+.gnode.is-critical rect { stroke: var(--l-red-dot); stroke-width: 2.5; fill: var(--l-red-bg); }
+.gnode.is-done rect { fill: var(--l-green-bg); stroke: var(--l-green-dot); }
+.gnode text { font-family: var(--font-sans); fill: var(--c-text); }
+.gnode .gt-name { font-size: 11px; font-weight: 700; }
+.gnode .gt-meta { font-size: 9px; fill: var(--c-text-muted); font-variant-numeric: tabular-nums; }
+.gedge { stroke: var(--c-accent-dash); stroke-width: 1.4; fill: none; }
+.gedge.is-critical { stroke: var(--l-red-dot); stroke-width: 2.2; }
+
+/* ---------- KPI 條 ---------- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--gap-md);
+}
+.kpi {
+  background: var(--c-surface-sub);
+  border: 1px solid var(--c-border-sub);
+  border-radius: var(--r-control);
+  padding: 10px 14px;
+}
+.kpi__k { font-size: var(--fs-tiny); color: var(--c-text-muted); display: block; }
+.kpi__v { font-size: var(--fs-kpi); font-weight: 700; color: var(--c-text); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.kpi__v--warn { color: var(--l-red-text); }
+.kpi__sub { font-size: var(--fs-tiny); color: var(--c-text-faint); display: block; }
+
+/* ---------- 專案清單卡 ---------- */
+.plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--gap-card); }
+.pcard {
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--r-card); padding: var(--card-pad);
+  display: flex; flex-direction: column; gap: var(--gap-sm);
+  cursor: pointer; text-align: left; font: inherit;
+}
+.pcard:hover { border-color: var(--c-accent-dash); }
+.pcard__title { font-size: var(--fs-h2); font-weight: 700; color: var(--c-text); margin: 0; }
+
+/* ---------- 工具 ---------- */
+.cols--wide { grid-template-columns: 380px 1fr; }
+@media (max-width: 960px) { .cols--wide { grid-template-columns: 1fr; } }
+.right { margin-left: auto; }
+.grow { flex: 1; }
+.hidden { display: none !important; }
+.wrap-tight { gap: 4px; }
+hr.sep { border: none; border-top: 1px solid var(--c-divider); margin: 4px 0; }
+
+/* ---------- 列印 ---------- */
+@media print {
+  .topnav, .tabs, .no-print, .btn { display: none !important; }
+  body { background: #fff; }
+  .page { padding: 0; max-width: none; }
+  .card, .mcard { break-inside: avoid; }
+}

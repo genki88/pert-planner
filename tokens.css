@@ -1,0 +1,102 @@
+/* =====================================================================
+   設計變數（design tokens）
+   依據：docs/design/design-tokens.md。元件只引用這裡的變數，不散寫色碼。
+   ===================================================================== */
+:root {
+  /* 1-1 基底 */
+  --c-page: #F3F1EC;
+  --c-surface: #FFFFFF;
+  --c-surface-sub: #F8F7F4;
+  --c-border: #DEDAD2;
+  --c-border-sub: #E7E3DB;
+  --c-divider: #EEEBE4;
+
+  /* 1-2 文字 */
+  --c-text: #1A1D21;
+  --c-text-body: #2B2F35;
+  --c-text-muted: #5B6068;
+  --c-text-faint: #6B7079;
+
+  /* 1-3 品牌與強調 */
+  --c-nav: #1A2638;
+  --c-nav-raised: #26354B;
+  --c-nav-border: #3A4B63;
+  --c-nav-text: #F3F1EC;
+  --c-nav-muted: #AEB8C6;
+  --c-accent: #1E3A5C;
+  --c-accent-hover: #10243C;
+  --c-accent-tint: #E9EDF3;
+  --c-accent-dash: #9AA8BC;
+  --c-on-accent: #FFFFFF;
+
+  /* 1-4 燈號（一律搭配文字） */
+  --l-green-dot: #2F7A4B;
+  --l-green-bg: #E7F1EA;
+  --l-green-text: #1F5A36;
+  --l-yellow-dot: #D9A21B;
+  --l-yellow-bg: #FBF0D6;
+  --l-yellow-text: #6E4E00;
+  --l-yellow-border: #E9CF8E;
+  --l-red-dot: #C0362C;
+  --l-red-bg: #FBE3DF;
+  --l-red-text: #8E1F17;
+
+  /* 熱力表實心色塊 */
+  --h-green-bg: #2F7A4B;
+  --h-green-text: #FFFFFF;
+  --h-yellow-bg: #E9B53A;
+  --h-yellow-text: #3D2B00;
+  --h-red-bg: #B42E24;
+  --h-red-text: #FFFFFF;
+
+  /* 1-5 狀態標籤 */
+  --c-mock-bg: #3A2F12;
+  --c-mock-text: #F2D48A;
+
+  /* 2 字體 */
+  --font-sans: "Noto Sans TC", system-ui, sans-serif;
+  --font-serif: "Noto Serif TC", serif;
+
+  /* 3 字級 */
+  --fs-brand: 22px;
+  --fs-h1: 30px;
+  --fs-h2: 18px;
+  --fs-kpi: 30px;
+  --fs-body: 14px;
+  --fs-body-lg: 16px;
+  --fs-label: 13px;
+  --fs-small: 12px;
+  --fs-tiny: 11px;
+  --lh-body: 1.6;
+
+  /* 4 間距與版面 */
+  --nav-height: 72px;
+  --page-pad-top: 28px;
+  --page-pad-x: 40px;
+  --page-pad-bottom: 24px;
+  --card-pad: 20px;
+  --gap-card: 18px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --row-min-height: 48px;
+  --tap-min: 44px;
+
+  /* 5 圓角 */
+  --r-card: 12px;
+  --r-control: 8px;
+  --r-button: 10px;
+  --r-pill: 999px;
+  --r-tag: 6px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --fs-brand: 18px;
+    --fs-h2: 16px;
+    --fs-kpi: 22px;
+    --page-pad-top: 16px;
+    --page-pad-x: 16px;
+    --page-pad-bottom: 16px;
+    --card-pad: 16px;
+  }
+}
