@@ -8,6 +8,8 @@
 const TEMPLATES = [
   {
     key: 'birdhouse',
+    tone: 'faint',
+    hint: '教學用，看一次就好',
     title: '鳥舍（教學範例）',
     desc: '手冊第 6-8 頁的入門範例。4 個里程碑事件，示範最早／最晚日期與鬆弛時間怎麼算。',
     goal: '安裝好一座鳥舍',
@@ -23,6 +25,8 @@ const TEMPLATES = [
 
   {
     key: 'scalable',
+    tone: 'normal',
+    hint: '想先看完整範例長什麼樣',
     title: '從自由工作者到可擴展的事業',
     desc: '手冊第 10-11 頁的完整 PERT 網絡圖，41 個里程碑事件，涵蓋 B-I 三角形全部區塊（使命／現金流／溝通／系統／法務／產品）。',
     goal: '發表開始 — 事業可擴展、不需要你親自在場也能運轉',
@@ -93,14 +97,19 @@ const TEMPLATES = [
 
   {
     key: 'blank',
+    tone: 'primary',
+    hint: '建議從這裡開始',
     title: '空白專案',
-    desc: '從你自己的目標開始，用倒推法一步步問「在那之前發生過什麼？」',
+    desc: '從你自己的目標開始。系統會一步步問「在那之前必須先完成什麼？」，你打字按 Enter，流程自己長出來。',
     goal: '',
     startDate: '',
     dueDate: '',
     events: [],
   },
 ];
+
+/** 首頁「新增專案」的顯示順序：真正要用的放左邊，教學範例放最右邊 */
+const HOME_ORDER = ['blank', 'scalable', 'birdhouse'];
 
 /** B-I 三角形的區塊，用作事件分類標籤 */
 const TRACKS = ['使命', '現金流', '溝通', '系統', '法務', '產品', '行銷', '品牌', '發表', '其他'];

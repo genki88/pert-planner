@@ -222,6 +222,44 @@
 }
 .pcard:hover { border-color: var(--c-accent-dash); }
 .pcard__title { font-size: var(--fs-h2); font-weight: 700; color: var(--c-text); margin: 0; }
+.pcard__hint {
+  align-self: flex-start;
+  font-size: var(--fs-tiny);
+  letter-spacing: .5px;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+}
+
+/* 三層底座：左邊＝平常要用的，越往右越淡（教學範例只會用一次） */
+.pcard--primary {
+  background: linear-gradient(180deg, #EDF1F6 0%, var(--c-surface) 72%);
+  border-color: var(--c-accent);
+  box-shadow: inset 0 0 0 1px #FFFFFF;
+}
+.pcard--primary:hover { border-color: var(--c-accent-hover); }
+.pcard--primary .pcard__title { color: var(--c-accent); font-size: 20px; }
+.pcard--primary .pcard__hint {
+  background: var(--c-accent); border-color: var(--c-accent);
+  color: var(--c-on-accent); font-weight: 700;
+}
+
+.pcard--normal {
+  background: linear-gradient(180deg, var(--c-surface-sub) 0%, var(--c-surface) 72%);
+  border-color: var(--c-border);
+}
+
+.pcard--faint {
+  background: var(--c-surface-sub);
+  border-style: dashed;
+  border-color: var(--c-border-sub);
+}
+.pcard--faint .pcard__title { color: var(--c-text-muted); font-size: var(--fs-body-lg); font-weight: 500; }
+.pcard--faint .pcard__hint { color: var(--c-text-faint); background: transparent; border-color: var(--c-border-sub); }
+.pcard--faint .tag { background: var(--c-surface); color: var(--c-text-faint); }
+.pcard--faint:hover { border-style: solid; border-color: var(--c-accent-dash); }
 
 /* ---------- 工具 ---------- */
 .cols--wide { grid-template-columns: 380px 1fr; }

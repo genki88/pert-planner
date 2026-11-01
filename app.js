@@ -88,12 +88,15 @@ function viewHome() {
         <h2 class="card__title">新增專案</h2>
       </div>
       <div class="plist">
-        ${TEMPLATES.map(t => `
-          <button type="button" class="pcard" data-act="newfrom" data-key="${t.key}">
+        ${HOME_ORDER.map(k => TEMPLATES.find(t => t.key === k)).filter(Boolean).map(t => `
+          <button type="button" class="pcard pcard--${t.tone || 'normal'}" data-act="newfrom" data-key="${t.key}">
+            ${t.hint ? `<span class="pcard__hint">${esc(t.hint)}</span>` : ''}
             <h3 class="pcard__title">${esc(t.title)}</h3>
             <div class="small muted">${esc(t.desc)}</div>
             <div class="tags">
-              ${t.events.length ? `<span class="tag">${t.events.length} 個里程碑</span>` : '<span class="tag">從零開始</span>'}
+              ${t.events.length
+                ? `<span class="tag">內含 ${t.events.length} 個里程碑</span>`
+                : '<span class="tag">從零開始，什麼都還沒有</span>'}
             </div>
           </button>`).join('')}
       </div>
