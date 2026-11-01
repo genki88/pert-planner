@@ -29,6 +29,7 @@ const state = {
   quickAnchor: null,  // 倒推時目前問到哪一個事件
   modal: null,
   filterTrack: '',
+  showLinks: true,     // 卡片檢視是否畫相依連接線
   toast: '',
 };
 
@@ -399,16 +400,21 @@ function paneCards() {
         <option value="2">一頁 2 張（開會討論）</option>
         <option value="1">一張一頁 · 放到最大（貼牆用）</option>
       </select>
+      <button type="button" class="chip ${state.showLinks ? 'is-on' : ''}" data-act="togglelinks">
+        ${state.showLinks ? '✓ 顯示連接線' : '顯示連接線'}
+      </button>
       <span class="small muted">共 ${evs.length} 張</span>
     </div>
     <div class="small muted">
-      這就是手冊上那張六欄位卡片。要貼牆追進度就選「一張一頁」，印出來一張 A4 一個里程碑，
-      上面的最早／最晚日期是系統算的，誰負責、幾天、多少預算一眼看完。
+      這就是手冊上那張六欄位卡片。箭頭是相依關係——箭頭指過去，代表<b>要先完成前一張，後一張才能開始</b>；
+      紅色箭頭是要徑。要貼牆追進度就選「一張一頁」，印出來一張 A4 一個里程碑。
     </div>
   </section>
-  <div class="mcards">
+  <div class="mcards-wrap">
+    <svg class="mlines" width="0" height="0" aria-hidden="true"></svg>
+    <div class="mcards">
     ${evs.map(e => `
-      <article class="mcard ${e.critical ? 'is-critical' : ''} ${e.done ? 'is-done' : ''}">
+      <article class="mcard ${e.critical ? 'is-critical' : ''} ${e.done ? 'is-done' : ''}" data-id="${e.id}">
         <div class="mcard__name">
           <span>${esc(e.name || '（未命名）')}${e.en ? `<span class="mcard__en">${esc(e.en)}</span>` : ''}</span>
           ${e.critical ? '<span class="tag tag--warn">要徑</span>' : ''}
@@ -430,6 +436,7 @@ function paneCards() {
           ${e.done ? '<span class="pill pill--green"><span class="pill__dot"></span>已完成</span>' : ''}
         </div>
       </article>`).join('')}
+    </div>
   </div>
   ${evs.length === 0 ? '<section class="card"><div class="sub small muted">沒有里程碑。</div></section>' : ''}`;
 }
@@ -524,7 +531,21 @@ function render() {
     ? `<div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:60" class="alert alert--ok small">${esc(state.toast)}</div>`
     : '';
   $('#root').innerHTML = body + renderModal() + toast;
+
+  // 卡片檢視：等版面排好後，依實際位置畫連接線
+  if (state.view === 'project' && state.tab === 'cards' && state.showLinks) {
+    const run = () => { try { drawCardLinks(); } catch (_) {} };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run); else setTimeout(run, 0);
+  }
 }
+
+/* 視窗寬度改變 → 卡片重排 → 連接線要重畫 */
+let __relinkTimer = null;
+window.addEventListener('resize', () => {
+  if (state.view !== 'project' || state.tab !== 'cards' || !state.showLinks) return;
+  clearTimeout(__relinkTimer);
+  __relinkTimer = setTimeout(() => { try { drawCardLinks(); } catch (_) {} }, 120);
+});
 
 /* ============================================================
    事件處理
@@ -630,6 +651,7 @@ document.addEventListener('click', async (ev) => {
   if (act === 'open') { await openProject(el.dataset.id); return; }
   if (act === 'tab') { state.tab = el.dataset.tab; render(); return; }
   if (act === 'track') { state.filterTrack = el.dataset.t; render(); return; }
+  if (act === 'togglelinks') { state.showLinks = !state.showLinks; render(); return; }
 
   if (act === 'setname') {
     const n = prompt('你的姓名（會顯示在專案上）', state.me?.name || '');

@@ -31,10 +31,24 @@
 }
 
 /* ---------- 里程碑卡片（紙本六欄位還原） ---------- */
+.mcards-wrap { position: relative; padding: 0 16px; }
+.mlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: visible;
+}
+.mline { fill: none; stroke: var(--c-text-muted); stroke-width: 1.8; }
+.mline.is-critical { stroke: var(--l-red-dot); stroke-width: 2.4; }
+
 .mcards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--gap-card);
+  row-gap: 30px;            /* 留出換行繞線的走道 */
+  position: relative;
+  z-index: 1;
 }
 .mcard {
   background: var(--c-surface);
@@ -299,6 +313,8 @@ hr.sep { border: none; border-top: 1px solid var(--c-divider); margin: 4px 0; }
 
 @media print {
   .topnav, .tabs, .no-print { display: none !important; }
+  .mlines { display: none !important; }   /* 列印會重排，螢幕上算的連接線座標會不準 */
+  .mcards-wrap { padding: 0; }
   body { background: #fff; }
   .page { padding: 0; max-width: none; }
   .card, .mcard { break-inside: avoid; }
